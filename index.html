@@ -138,7 +138,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
 .kpi-sub   { font-size: 11px; color: var(--txt2); }
 .kpi-mom   { font-size: 11px; font-weight: 600; margin-top: 5px; display: inline-block; padding: 2px 7px; border-radius: 10px; }
 .kpi-mom.up   { color: #15803d; background: #dcfce7; }
-.kpi-mom.down { color: #b91c1c; background: #fee2e2; }
+.kpi-mom.down { color: #92400e; background: #fef3c7; }
 .kpi-mom.flat { color: #64748b; background: #f1f5f9; }
 
 /* ── Chart rows ── */
@@ -486,7 +486,7 @@ function normalizeHH(rows) {
   return rows.map(r => ({
     url:          clean(r['URL']),
     fecha:        parseDate(clean(r['Fecha'])),
-    sentimiento:  clean(r['Sentimiento']),
+    sentimiento:  clean(r['Sentimiento']) ? clean(r['Sentimiento']).charAt(0).toUpperCase() + clean(r['Sentimiento']).slice(1).toLowerCase() : '',
     transferida:  isTruthy(r['Transferida']),
     estado:       clean(r['Estado']),
     tipoSolicitud:clean(r['Tipo de solicitud']),
@@ -628,9 +628,11 @@ function momBadge(curr, prev, higherIsBetter = true) {
   if (prev  > 0 && curr === 0) return `<span class="kpi-mom down">↓ 100% vs ${prevLabel}</span>`;
   const delta = Math.round((curr - prev) / prev * 100);
   if (delta === 0) return `<span class="kpi-mom flat">= igual que ${prevLabel}</span>`;
-  const isUp = delta > 0;
-  const cls  = (higherIsBetter ? isUp : !isUp) ? 'up' : 'down';
-  return `<span class="kpi-mom ${cls}">${isUp?'↑':'↓'} ${Math.abs(delta)}% vs ${prevLabel}</span>`;
+  const isUp   = delta > 0;
+  const isGood = higherIsBetter ? isUp : !isUp;
+  const cls    = isGood ? 'up' : 'down';
+  const sign   = isGood ? '↑' : '↓';
+  return `<span class="kpi-mom ${cls}">${sign} ${Math.abs(delta)}% vs ${prevLabel}</span>`;
 }
 
 // ══════════════════════════════════════════════════════════════
