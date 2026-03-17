@@ -378,9 +378,17 @@ function isTruthy(v) {
 }
 function parseDate(str) {
   if (!str) return null;
-  const s = String(str).trim()
+  let s = String(str).trim()
     .replace('a.m.','AM').replace('p.m.','PM')
     .replace('a. m.','AM').replace('p. m.','PM');
+
+  // Maneja formato MM/DD/YY o MM/DD/YY h:mm AM/PM → convierte año 2 dígitos a 4
+  // Ej: "01/17/26 1:30 PM" → "01/17/2026 1:30 PM"
+  s = s.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{2})(\s|$)/, (_, m, d, y, rest) => {
+    const fullYear = parseInt(y) <= 50 ? '20' + y : '19' + y;
+    return `${m}/${d}/${fullYear}${rest}`;
+  });
+
   const d = new Date(s);
   return isNaN(d) ? null : d;
 }
@@ -455,6 +463,25 @@ function fetchCSV(url) {
 // ══════════════════════════════════════════════════════════════
 //  NORMALIZAR FILAS
 // ══════════════════════════════════════════════════════════════
+function normalizeCitas(rows) {
+  return rows.map(r => {
+    // Intenta columnas comunes de fecha primero, luego recorre todas
+    const fechaCandidates = ['fecha', 'Fecha', 'FECHA', 'date', 'Date', 'created_at', 'timestamp'];
+    let fecha = null;
+    for (const k of fechaCandidates) {
+      if (r[k] && !isUndef(r[k])) { fecha = parseDate(clean(r[k])); break; }
+    }
+    if (!fecha) {
+      // Último recurso: primera columna que parezca una fecha
+      for (const v of Object.values(r)) {
+        const d = parseDate(clean(v));
+        if (d) { fecha = d; break; }
+      }
+    }
+    return { ...r, fecha };
+  });
+}
+
 function normalizeHH(rows) {
   return rows.map(r => ({
     url:          clean(r['URL']),
@@ -615,9 +642,10 @@ function renderAll() {
   const resueltas   = hh.filter(isResuelta).length;
   const transferidas= hh.filter(isTransferida).length;
   const sinResolucion = total - resueltas - transferidas;
-  const citasTotal  = RAW.agendadas.length;
-  const canceladas  = RAW.canceladas.length;
-  const errores     = RAW.errores.length;
+  const f = getFilters();
+  const citasTotal  = RAW.agendadas.filter(r => inDateRange(r.fecha, f.from, f.to)).length;
+  const canceladas  = RAW.canceladas.filter(r => inDateRange(r.fecha, f.from, f.to)).length;
+  const errores     = RAW.errores.filter(r => inDateRange(r.fecha, f.from, f.to)).length;
 
   const baseHH = filterBaseHH();
   const hhC = getMonthRows(baseHH, 0);
@@ -732,9 +760,9 @@ async function reloadData() {
       fetchCSV(SHEETS.errores),
     ]);
     RAW.hh         = normalizeHH(hh);
-    RAW.agendadas  = agendadas.filter(r => Object.values(r).some(v => v && !isUndef(v)));
-    RAW.canceladas = canceladas.filter(r => Object.values(r).some(v => v && !isUndef(v)));
-    RAW.errores    = errores.filter(r => Object.values(r).some(v => v && !isUndef(v)));
+    RAW.agendadas  = normalizeCitas(agendadas.filter(r => Object.values(r).some(v => v && !isUndef(v))));
+    RAW.canceladas = normalizeCitas(canceladas.filter(r => Object.values(r).some(v => v && !isUndef(v))));
+    RAW.errores    = normalizeCitas(errores.filter(r => Object.values(r).some(v => v && !isUndef(v))));
     document.getElementById('last-update').textContent =
       'Actualizado: ' + new Date().toLocaleTimeString('es-CR');
     renderAll();
