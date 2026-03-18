@@ -237,6 +237,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
     <h2 id="section-title">Desempeño del Agente</h2>
 
     <div class="quick-dates">
+      <button onclick="setQuickDate('hoy')" id="qd-hoy">Hoy</button>
       <button onclick="setQuickDate(7)"  id="qd-7">7D</button>
       <button onclick="setQuickDate(30)" id="qd-30" class="active">30D</button>
       <button onclick="setQuickDate('mes')" id="qd-mes">Este mes</button>
@@ -427,6 +428,7 @@ function dateRange30() {
 function setQuickDate(range) {
   const now = new Date();
   let from, to = now;
+  if (range === 'hoy') { from = new Date(now.getFullYear(), now.getMonth(), now.getDate()); }
   if (range === 7)  { from = new Date(); from.setDate(now.getDate() - 6); }
   if (range === 30) { from = new Date(); from.setDate(now.getDate() - 29); }
   if (range === 'mes') { from = new Date(now.getFullYear(), now.getMonth(), 1); }
@@ -435,14 +437,14 @@ function setQuickDate(range) {
   document.getElementById('f-from').value = from ? toYMD(from) : '';
   document.getElementById('f-to').value   = to   ? toYMD(to)   : '';
 
-  ['7','30','mes','todo'].forEach(k => {
+  ['hoy','7','30','mes','todo'].forEach(k => {
     document.getElementById('qd-' + k)?.classList.remove('active');
   });
   document.getElementById('qd-' + range)?.classList.add('active');
   renderAll();
 }
 function clearQuickDate() {
-  ['7','30','mes','todo'].forEach(k => {
+  ['hoy','7','30','mes','todo'].forEach(k => {
     document.getElementById('qd-' + k)?.classList.remove('active');
   });
 }
