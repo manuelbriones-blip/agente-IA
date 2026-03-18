@@ -182,6 +182,61 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
 }
 .empty-state p { font-size: 13px; }
 
+/* ── Resumen en lenguaje natural ── */
+.summary-banner {
+  background: #fff; border-radius: 10px; padding: 16px 20px;
+  box-shadow: var(--shadow); margin-bottom: 20px;
+  border-left: 4px solid #1a73e8;
+  display: flex; align-items: flex-start; gap: 14px;
+}
+.summary-banner .sb-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+.summary-banner .sb-text { font-size: 13px; color: #334155; line-height: 1.6; }
+.summary-banner .sb-text strong { color: #0f172a; }
+
+/* ── Semáforo en KPI ── */
+.kpi-semaforo { display: flex; align-items: center; gap: 5px; margin-top: 6px; }
+.semaforo-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.semaforo-dot.green  { background: #16a34a; }
+.semaforo-dot.amber  { background: #d97706; }
+.semaforo-dot.red    { background: #dc2626; }
+.semaforo-label { font-size: 11px; font-weight: 600; }
+.semaforo-label.green { color: #15803d; }
+.semaforo-label.amber { color: #92400e; }
+.semaforo-label.red   { color: #b91c1c; }
+
+/* ── Modal de detalle ── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(15,23,42,.6);
+  z-index: 500; display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-box {
+  background: #fff; border-radius: 12px; width: 100%; max-width: 860px;
+  max-height: 85vh; display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+}
+.modal-header {
+  padding: 18px 24px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.modal-header h3 { font-size: 15px; font-weight: 700; }
+.modal-header .modal-close {
+  width: 30px; height: 30px; border-radius: 6px; border: none;
+  background: #f1f5f9; cursor: pointer; font-size: 16px; color: #64748b;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-header .modal-close:hover { background: #e2e8f0; }
+.modal-body { overflow-y: auto; padding: 16px 24px 24px; flex: 1; }
+.modal-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.modal-table th {
+  background: #f8fafc; padding: 8px 12px; border: 1px solid #e2e8f0;
+  text-align: left; font-weight: 600; color: #64748b; white-space: nowrap;
+}
+.modal-table td { padding: 7px 12px; border: 1px solid #e2e8f0; vertical-align: top; }
+.modal-table tr:nth-child(even) td { background: #f8fafc; }
+.modal-table .td-url a { color: #1a73e8; font-size: 11px; }
+.chart-card .clickable-hint { font-size: 10px; color: #94a3b8; margin-top: -10px; margin-bottom: 10px; }
+
 /* ── Responsive ── */
 @media (max-width: 1000px) {
   .chart-row.cols-3 { grid-template-columns: 1fr 1fr; }
@@ -289,7 +344,17 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
             <div class="hs-val" id="hero-mes">—</div>
             <div class="hs-label">Este mes</div>
           </div>
+          <div class="hero-stat">
+            <div class="hs-val" id="hero-valor">—</div>
+            <div class="hs-label">Valor generado</div>
+          </div>
         </div>
+      </div>
+
+      <!-- Resumen en lenguaje natural -->
+      <div class="summary-banner" id="summary-banner">
+        <div class="sb-icon">🤖</div>
+        <div class="sb-text" id="summary-text">Cargando resumen...</div>
       </div>
 
       <!-- Insight cards (resolución · transferidas · sin resolución) -->
@@ -316,15 +381,18 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
         <div class="chart-card">
           <h3>Tipo de solicitud</h3>
           <p class="chart-subtitle">¿Qué pidieron los pacientes?</p>
+          <p class="clickable-hint">👆 Clic en un segmento para ver el detalle</p>
           <div class="chart-wrap"><canvas id="ch-hh-solicitud"></canvas></div>
         </div>
         <div class="chart-card">
-          <h3>Estatus de conversación</h3>
+          <h3>Resultado de la gestión</h3>
+          <p class="clickable-hint">👆 Clic en un segmento para ver el detalle</p>
           <div class="chart-wrap"><canvas id="ch-hh-estatus"></canvas></div>
         </div>
         <div class="chart-card">
           <h3>Sentimiento del paciente</h3>
           <p class="chart-subtitle">Tono detectado al cierre</p>
+          <p class="clickable-hint">👆 Clic en un segmento para ver el detalle</p>
           <div class="chart-wrap"><canvas id="ch-hh-sentimiento"></canvas></div>
         </div>
       </div>
@@ -671,10 +739,11 @@ const PALETTE = ['#059669','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#06b6d4','#f
 function destroyChart(id) {
   if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; }
 }
-function makeDonut(id, labels, data, colors) {
+function makeDonut(id, labels, data, colors, onClickFn) {
   destroyChart(id);
   const ctx = document.getElementById(id);
   if (!ctx) return;
+  if (onClickFn) ctx.style.cursor = 'pointer';
   CHARTS[id] = new Chart(ctx, {
     type: 'doughnut',
     data: { labels, datasets: [{ data, backgroundColor: colors || PALETTE, borderWidth: 2 }] },
@@ -692,6 +761,11 @@ function makeDonut(id, labels, data, colors) {
           }
         }
       },
+      onClick: onClickFn ? (evt, elements) => {
+        if (!elements.length) return;
+        const idx = elements[0].index;
+        onClickFn(labels[idx]);
+      } : undefined,
     }
   });
 }
@@ -730,14 +804,57 @@ function makeLine(id, labels, datasets) {
     }
   });
 }
-function kpiCard(label, val, sub, cls = '', mom = '') {
+// Valor por cita (ingreso para Huli)
+const CITA_VALOR = 7;
+function formatUSD(n) { return '$' + (n).toLocaleString('en-US'); }
+
+// Semáforo: devuelve { color, label } según umbrales
+function semaforo(tipo, valor) {
+  const map = {
+    resolucion:  valor >= 60 ? {c:'green',l:'En objetivo'}   : valor >= 40 ? {c:'amber',l:'Por mejorar'}    : {c:'red',l:'Atención'},
+    canceladas:  valor <= 10 ? {c:'green',l:'Nivel normal'}  : valor <= 25 ? {c:'amber',l:'Revisar'}         : {c:'red',l:'Alto'},
+    errores:     valor === 0  ? {c:'green',l:'Sin errores'}   : valor <= 5  ? {c:'amber',l:'Revisar'}         : {c:'red',l:'Alto'},
+    derivadas:   valor <= 20  ? {c:'green',l:'Bajo impacto'}  : valor <= 35 ? {c:'amber',l:'Moderado'}        : {c:'red',l:'Elevado'},
+    sinResol:    valor <= 10  ? {c:'green',l:'Bajo impacto'}  : valor <= 25 ? {c:'amber',l:'Moderado'}        : {c:'red',l:'Elevado'},
+  };
+  const s = map[tipo] || {c:'green',l:''};
+  return `<div class="kpi-semaforo"><span class="semaforo-dot ${s.c}"></span><span class="semaforo-label ${s.c}">${s.l}</span></div>`;
+}
+
+function kpiCard(label, val, sub, cls = '', mom = '', semaforoHtml = '') {
   return `<div class="kpi-card ${cls}">
     <div class="kpi-label">${label}</div>
     <div class="kpi-val">${val}</div>
     <div class="kpi-sub">${sub}</div>
+    ${semaforoHtml}
     ${mom}
   </div>`;
 }
+
+// ── Modal de detalle ──
+function openModal(title, rows) {
+  document.getElementById('modal-title').textContent = title;
+  const cols = [
+    { key: 'fecha',         label: 'Fecha',           fmt: v => v ? v.toLocaleString('es-CR', {dateStyle:'short',timeStyle:'short'}) : '—' },
+    { key: 'tipoSolicitud', label: 'Tipo de solicitud',fmt: v => v || '—' },
+    { key: 'estado',        label: 'Estado',           fmt: v => v || '—' },
+    { key: 'sentimiento',   label: 'Sentimiento',      fmt: v => v || '—' },
+    { key: 'resumen',       label: 'Resumen',          fmt: v => v ? `<span title="${v}">${v.length>60?v.slice(0,60)+'…':v}</span>` : '—' },
+    { key: 'url',           label: 'Conversación',     fmt: v => v ? `<a href="${v}" target="_blank">Abrir →</a>` : '—', tdCls: 'td-url' },
+  ];
+  let html = `<p style="font-size:12px;color:#64748b;margin-bottom:12px">${rows.length} conversacion(es) encontradas</p>`;
+  if (!rows.length) { html += '<p style="color:#94a3b8;font-size:13px">Sin datos para este segmento.</p>'; }
+  else {
+    html += `<table class="modal-table"><thead><tr>${cols.map(c=>`<th>${c.label}</th>`).join('')}</tr></thead><tbody>`;
+    rows.forEach(r => {
+      html += `<tr>${cols.map(c=>`<td class="${c.tdCls||''}">${c.fmt(r[c.key])}</td>`).join('')}</tr>`;
+    });
+    html += '</tbody></table>';
+  }
+  document.getElementById('modal-content').innerHTML = html;
+  document.getElementById('detail-modal').style.display = 'flex';
+}
+function closeModal() { document.getElementById('detail-modal').style.display = 'none'; }
 
 // ══════════════════════════════════════════════════════════════
 //  MES SOBRE MES (MoM)
@@ -821,7 +938,11 @@ function renderComparativo() {
               if (h > 0 && a > 0) {
                 const diff = a - h;
                 const pctChange = Math.round((diff / h) * 100);
-                return [`Δ vs humano: ${diff >= 0 ? '+' : ''}${diff} (${pctChange >= 0 ? '+' : ''}${pctChange}%)`];
+                const valorDiff = diff * CITA_VALOR;
+                return [
+                  `Δ citas: ${diff >= 0 ? '+' : ''}${diff} (${pctChange >= 0 ? '+' : ''}${pctChange}%)`,
+                  `Δ valor: ${diff >= 0 ? '+' : ''}${formatUSD(valorDiff)} vs humano`,
+                ];
               }
               return [];
             },
@@ -959,10 +1080,12 @@ function renderAll() {
 
   // ── Hero banner ──
   const tasa = pctNum(resueltas, total);
+  const valorGenerado = citasTotal * CITA_VALOR;
   document.getElementById('hero-resolucion').textContent = total ? tasa + '%' : '—';
   document.getElementById('hero-total').textContent      = total;
   document.getElementById('hero-citas').textContent      = citasTotal;
   document.getElementById('hero-mes').textContent        = hhC.length;
+  document.getElementById('hero-valor').textContent      = citasTotal ? formatUSD(valorGenerado) : '—';
 
   // ── Insight cards ──
   document.getElementById('insight-row').innerHTML = `
@@ -992,13 +1115,36 @@ function renderAll() {
     </div>`;
 
   // ── KPI secundarios ──
+  const pctCanceladas  = total ? Math.round(canceladas  / (citasTotal + canceladas  || 1) * 100) : 0;
+  const pctErrores     = total ? Math.round(errores     / (citasTotal + errores     || 1) * 100) : 0;
+  const pctDerivadas   = total ? Math.round(transferidas / total * 100) : 0;
+  const pctSinResol    = total ? Math.round(sinResolucion / total * 100) : 0;
   document.getElementById('kpi-hh').innerHTML =
-    kpiCard('Total conversaciones', total,       'Canal texto',                     'hh',  momBadge(hhC.length, hhP.length)) +
-    kpiCard('Citas agendadas',      citasTotal,  RAW.agendadas.length + ' en sheet · en rango seleccionado', 'ok') +
-    kpiCard('Citas canceladas',     canceladas,  pct(canceladas, citasTotal+canceladas) + ' del total', 'warn') +
-    kpiCard('Errores en citas',     errores,     pct(errores, citasTotal+errores) + ' del total', 'err') +
-    kpiCard('Derivadas a humano',   transferidas,pct(transferidas,total),            'warn', momBadge(hhC_tr, hhP_tr, false)) +
-    kpiCard('Sin resolución',       sinResolucion,pct(sinResolucion,total),          'err',  momBadge(hhC_imp, hhP_imp, false));
+    kpiCard('Total conversaciones', total,        'Canal texto',                              'hh',   momBadge(hhC.length, hhP.length),  semaforo('resolucion', tasa)) +
+    kpiCard('Citas agendadas',      citasTotal,   formatUSD(valorGenerado) + ' generados · ' + RAW.agendadas.length + ' en sheet', 'ok', '', '') +
+    kpiCard('Citas canceladas',     canceladas,   pct(canceladas, citasTotal+canceladas) + ' del total', 'warn', '', semaforo('canceladas', pctCanceladas)) +
+    kpiCard('Errores en citas',     errores,      pct(errores, citasTotal+errores) + ' del total',       'err',  '', semaforo('errores', pctErrores)) +
+    kpiCard('Derivadas a humano',   transferidas, pct(transferidas,total),                               'warn', momBadge(hhC_tr, hhP_tr, false), semaforo('derivadas', pctDerivadas)) +
+    kpiCard('Sin resolución',       sinResolucion,pct(sinResolucion,total),                              'err',  momBadge(hhC_imp, hhP_imp, false), semaforo('sinResol', pctSinResol));
+
+  // ── Resumen en lenguaje natural ──
+  (function buildSummary() {
+    const el = document.getElementById('summary-text');
+    if (!el || !total) { if (el) el.innerHTML = 'Sin datos para el período seleccionado.'; return; }
+    const rangoTexto = f.from && f.to
+      ? `del <strong>${f.from.toLocaleDateString('es-CR',{day:'numeric',month:'short'})}</strong> al <strong>${f.to.toLocaleDateString('es-CR',{day:'numeric',month:'short'})}</strong>`
+      : f.from ? `desde el <strong>${f.from.toLocaleDateString('es-CR',{day:'numeric',month:'short'})}</strong>`
+      : 'en <strong>todo el historial</strong>';
+    const tasaStr = tasa + '%';
+    const tendencia = tasa >= 60 ? '✅ rendimiento <strong>sólido</strong>' : tasa >= 40 ? '⚡ rendimiento <strong>en desarrollo</strong>' : '⚠️ rendimiento <strong>por mejorar</strong>';
+    const citasFrase = citasTotal > 0
+      ? ` Agendó <strong>${citasTotal} cita${citasTotal>1?'s':''}</strong>, generando <strong>${formatUSD(valorGenerado)}</strong> en ingresos para la red de médicos.`
+      : '';
+    const derivadasFrase = transferidas > 0
+      ? ` <strong>${transferidas} caso${transferidas>1?'s':''}</strong> (${pct(transferidas,total)}) necesitaron intervención del equipo.`
+      : ' No hubo derivaciones a humano.';
+    el.innerHTML = `${rangoTexto.charAt(0).toUpperCase() + rangoTexto.slice(1)}, el agente atendió <strong>${total} conversaciones</strong> con ${tendencia} — resolvió el <strong>${tasaStr}</strong> de forma autónoma.${citasFrase}${derivadasFrase}`;
+  })();
 
   // ── Resultado conversaciones (donut principal) ──
   makeDonut('ch-hh-gestion',
@@ -1083,19 +1229,31 @@ function renderAll() {
     });
   }
 
-  // ── Tipo de solicitud ──
+  // ── Tipo de solicitud (con drill-down) ──
   const byTipo = countBy(hh, r => r.tipoSolicitud || 'Sin dato');
-  makeDonut('ch-hh-solicitud', Object.keys(byTipo), Object.values(byTipo));
+  makeDonut('ch-hh-solicitud', Object.keys(byTipo), Object.values(byTipo), undefined, (label) => {
+    const key = label.replace(/\s*\(.*\)/, '').trim();
+    const rows = hh.filter(r => (r.tipoSolicitud || 'Sin dato') === key);
+    openModal('Tipo de solicitud: ' + key, rows);
+  });
 
-  // ── Estatus ──
+  // ── Resultado de gestión (con drill-down) ──
   const byEstatus = countBy(hh, r => r.estado || 'Sin dato');
   makeDonut('ch-hh-estatus', Object.keys(byEstatus), Object.values(byEstatus),
-    ['#10b981','#f59e0b','#ef4444','#94a3b8','#3b82f6']);
+    ['#10b981','#f59e0b','#ef4444','#94a3b8','#3b82f6'], (label) => {
+    const key = label.replace(/\s*\(.*\)/, '').trim();
+    const rows = hh.filter(r => (r.estado || 'Sin dato') === key);
+    openModal('Estado: ' + key, rows);
+  });
 
-  // ── Sentimiento ──
+  // ── Sentimiento (con drill-down) ──
   const bySent = countBy(hh.filter(r => r.sentimiento), r => r.sentimiento);
   makeDonut('ch-hh-sentimiento', Object.keys(bySent), Object.values(bySent),
-    ['#10b981','#f59e0b','#ef4444','#94a3b8']);
+    ['#10b981','#f59e0b','#ef4444','#94a3b8'], (label) => {
+    const key = label.replace(/\s*\(.*\)/, '').trim();
+    const rows = hh.filter(r => r.sentimiento === key);
+    openModal('Sentimiento: ' + key, rows);
+  });
 
   // ── Citas estado ──
   makeBar('ch-citas-estado',
@@ -1208,5 +1366,18 @@ function resetCountdown() {
   await reloadData();
 })();
 </script>
+
+<!-- MODAL DE DETALLE -->
+<div class="modal-overlay" id="detail-modal" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="modal-title">Detalle</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="modal-content"></div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
