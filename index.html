@@ -738,11 +738,7 @@ function makeDonut(id, labels, data, colors, onClickFn, tooltipExtraFn) {
         legend: { position: 'right', labels: { font: { size: 11 }, padding: 10 } },
         tooltip: {
           callbacks: {
-            label: ctx => {
-              const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
-              const p = total ? Math.round(ctx.parsed / total * 100) : 0;
-              return ` ${ctx.label}: ${ctx.parsed} (${p}%)`;
-            },
+            label: ctx => ` ${ctx.label}: ${ctx.parsed}`,
             afterLabel: tooltipExtraFn
               ? ctx => tooltipExtraFn(ctx.dataIndex, ctx.label)
               : undefined,
@@ -1109,7 +1105,7 @@ function renderAll() {
   const pctDerivadas   = total ? Math.round(transferidas / total * 100) : 0;
   const pctSinResol    = total ? Math.round(sinResolucion / total * 100) : 0;
   document.getElementById('kpi-hh').innerHTML =
-    kpiCard('Total conversaciones', total,        'Canal texto',                              'hh',   '',  semaforo('resolucion', tasa)) +
+    kpiCard('Total conversaciones', total,        'Canal texto',                              'hh',   '', '') +
     kpiCard('Citas agendadas',      citasTotal,   formatUSD(valorGenerado) + ' generados · ' + RAW.agendadas.length + ' en sheet', 'ok', '', '') +
     kpiCard('Citas canceladas',     canceladas,   pct(canceladas, citasTotal+canceladas) + ' del total', 'warn', '', semaforo('canceladas', pctCanceladas)) +
     kpiCard('Errores en citas',     errores,      pct(errores, citasTotal+errores) + ' del total',       'err',  '', semaforo('errores', pctErrores)) +
@@ -1238,14 +1234,28 @@ function renderAll() {
     openModal('Tipo de solicitud: ' + key, rows);
   });
 
-  // ── Resultado de gestión (con drill-down, sin "Sin dato") ──
+  // ── Resultado de gestión (con drill-down + tooltip desglose) ──
   const byEstatus = countBy(hh.filter(r => r.estado), r => r.estado);
-  makeDonut('ch-hh-estatus', Object.keys(byEstatus), Object.values(byEstatus),
-    ['#10b981','#f59e0b','#ef4444','#94a3b8','#3b82f6'], (label) => {
-    const key = label.replace(/\s*\(.*\)/, '').trim();
-    const rows = hh.filter(r => r.estado === key);
-    openModal('Estado: ' + key, rows);
-  });
+  const estatusKeys = Object.keys(byEstatus);
+  const desgloseEstatus = estatusKeys.map(estado =>
+    countBy(hh.filter(r => r.estado === estado && r.tipoSolicitud), r => r.tipoSolicitud)
+  );
+  makeDonut('ch-hh-estatus', estatusKeys, Object.values(byEstatus),
+    ['#10b981','#f59e0b','#ef4444','#94a3b8','#3b82f6'],
+    (label) => {
+      const key = label.replace(/\s*\(.*\)/, '').trim();
+      const rows = hh.filter(r => r.estado === key);
+      openModal('Estado: ' + key, rows);
+    },
+    (idx) => {
+      const byTipo = desgloseEstatus[idx];
+      if (!byTipo || !Object.keys(byTipo).length) return [];
+      const lines = Object.entries(byTipo)
+        .sort((a,b) => b[1]-a[1])
+        .map(([k,v]) => `  · ${k}: ${v}`);
+      return ['  ─────────────', ...lines];
+    }
+  );
 
   // ── Sentimiento (con drill-down, sin "Sin dato") ──
   const bySent = countBy(hh.filter(r => r.sentimiento), r => r.sentimiento);
