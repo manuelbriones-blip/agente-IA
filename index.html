@@ -467,17 +467,25 @@ function fetchCSV(url) {
 // ══════════════════════════════════════════════════════════════
 function normalizeCitas(rows) {
   return rows
-    // Solo filas que tienen URL — esas son las citas reales
-    .filter(r => Object.values(r).some(v => v && String(v).startsWith('http')))
     .map(r => {
       // Claves normalizadas para tolerar espacios/mayúsculas en el header
       const normalized = {};
       for (const k of Object.keys(r)) {
         normalized[k.trim().toLowerCase()] = r[k];
       }
-      const rawFecha = normalized['fecha'];
+      return { _norm: normalized, _orig: r };
+    })
+    // Solo filas cuya columna "url…" contenga un enlace http válido
+    .filter(({ _norm }) => {
+      const urlKey = Object.keys(_norm).find(k => k.includes('url'));
+      if (!urlKey) return false;
+      const urlVal = String(_norm[urlKey] || '').trim();
+      return urlVal.startsWith('http');
+    })
+    .map(({ _norm, _orig }) => {
+      const rawFecha = _norm['fecha'];
       const fecha = (rawFecha && !isUndef(rawFecha)) ? parseDate(clean(rawFecha)) : null;
-      return { ...r, fecha };
+      return { ..._orig, fecha };
     });
 }
 
@@ -696,7 +704,7 @@ function renderAll() {
   // ── KPI secundarios ──
   document.getElementById('kpi-hh').innerHTML =
     kpiCard('Total conversaciones', total,       'Canal texto',                     'hh',  momBadge(hhC.length, hhP.length)) +
-    kpiCard('Citas agendadas',      citasTotal,  'Vía Citas HH IA',                 'ok') +
+    kpiCard('Citas agendadas',      citasTotal,  RAW.agendadas.length + ' en sheet · en rango seleccionado', 'ok') +
     kpiCard('Citas canceladas',     canceladas,  pct(canceladas, citasTotal+canceladas) + ' del total', 'warn') +
     kpiCard('Errores en citas',     errores,     pct(errores, citasTotal+errores) + ' del total', 'err') +
     kpiCard('Derivadas a humano',   transferidas,pct(transferidas,total),            'warn', momBadge(hhC_tr, hhP_tr, false)) +
