@@ -465,19 +465,17 @@ function fetchCSV(url) {
 // ══════════════════════════════════════════════════════════════
 function normalizeCitas(rows) {
   return rows.map(r => {
-    // Intenta columnas comunes de fecha primero, luego recorre todas
-    const fechaCandidates = ['fecha', 'Fecha', 'FECHA', 'date', 'Date', 'created_at', 'timestamp'];
-    let fecha = null;
-    for (const k of fechaCandidates) {
-      if (r[k] && !isUndef(r[k])) { fecha = parseDate(clean(r[k])); break; }
+    // Construye un mapa con claves normalizadas (sin espacios, minúsculas)
+    // para tolerar "Fecha", " Fecha ", "FECHA", etc.
+    const normalized = {};
+    for (const k of Object.keys(r)) {
+      normalized[k.trim().toLowerCase()] = r[k];
     }
-    if (!fecha) {
-      // Último recurso: primera columna que parezca una fecha
-      for (const v of Object.values(r)) {
-        const d = parseDate(clean(v));
-        if (d) { fecha = d; break; }
-      }
-    }
+
+    // Busca específicamente la columna "Fecha" (fecha de agendamiento)
+    const rawFecha = normalized['fecha'];
+    const fecha = (rawFecha && !isUndef(rawFecha)) ? parseDate(clean(rawFecha)) : null;
+
     return { ...r, fecha };
   });
 }
