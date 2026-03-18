@@ -343,6 +343,17 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
         </div>
       </div>
 
+      <!-- DEBUG DIAGNÓSTICO CITAS -->
+      <div class="chart-card" style="margin-top:16px">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="document.getElementById('debug-body').style.display=document.getElementById('debug-body').style.display==='none'?'block':'none'">
+          <h3 style="margin:0">🔍 Diagnóstico de citas agendadas</h3>
+          <span style="font-size:11px;color:#64748b">(clic para expandir/colapsar)</span>
+        </div>
+        <div id="debug-body" style="display:none;margin-top:12px">
+          <div id="debug-citas-content" style="font-size:12px;color:#334155;overflow-x:auto"></div>
+        </div>
+      </div>
+
     </div><!-- /sec-hh -->
 
   </div><!-- /content -->
@@ -813,6 +824,29 @@ function renderAll() {
     [{ label: 'Citas', data: [citasTotal, canceladas, errores],
        backgroundColor: ['#059669','#f59e0b','#ef4444'] }],
     { legend: false });
+
+  // ── DEBUG: diagnóstico de citas ──
+  (function buildDebug() {
+    const el = document.getElementById('debug-citas-content');
+    if (!el) return;
+    const inRange = RAW.agendadas.filter(r => r.fecha && inDateRange(r.fecha, f.from, f.to));
+    // Columnas del sheet (primera fila del raw)
+    const rawCols = RAW.agendadas.length > 0 ? Object.keys(RAW.agendadas[0]).filter(k => k !== 'fecha' && k !== '_url') : [];
+    let html = `<p style="margin-bottom:8px"><strong>Total en sheet (post-filtro):</strong> ${RAW.agendadas.length} filas &nbsp;|&nbsp; <strong>En rango seleccionado:</strong> ${inRange.length} filas</p>`;
+    html += `<p style="margin-bottom:8px"><strong>Columnas del sheet:</strong> ${rawCols.map(c=>`<code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">${c}</code>`).join(' ')}</p>`;
+    html += `<p style="margin-bottom:6px"><strong>Primeras 30 filas en el rango (Fecha + todas las columnas):</strong></p>`;
+    html += `<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;width:100%">`;
+    html += `<tr style="background:#f8fafc">${['#','Fecha parseada',...rawCols].map(c=>`<th style="padding:4px 8px;border:1px solid #e2e8f0;white-space:nowrap;text-align:left">${c}</th>`).join('')}</tr>`;
+    inRange.slice(0, 30).forEach((r, i) => {
+      const cells = [i+1, r.fecha ? r.fecha.toLocaleString('es-CR') : '—', ...rawCols.map(c => {
+        const v = String(r[c] || '');
+        return v.startsWith('http') ? `<a href="${v}" target="_blank" style="color:#1a73e8">URL</a>` : (v.length > 40 ? v.slice(0,40)+'…' : v);
+      })];
+      html += `<tr style="${i%2===0?'background:#fff':'background:#f8fafc'}">${cells.map(c=>`<td style="padding:3px 8px;border:1px solid #e2e8f0;white-space:nowrap">${c}</td>`).join('')}</tr>`;
+    });
+    html += `</table></div>`;
+    el.innerHTML = html;
+  })();
 
   // ── Top médicos ──
   const byMedico = countBy(hh.filter(r => r.medico), r => r.medico);
