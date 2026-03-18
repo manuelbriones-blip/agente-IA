@@ -343,7 +343,47 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
         </div>
       </div>
 
-      <!-- DEBUG DIAGNÓSTICO CITAS -->
+      <!-- Comparativo Humano vs IA -->
+      <div class="chart-row cols-1" style="margin-top:16px">
+        <div class="chart-card">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+            <div>
+              <h3>Citas agendadas: Humano vs Agente IA</h3>
+              <p class="chart-subtitle">Comparativo mensual — canal WhatsApp CR · Sept 2025 en adelante</p>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#64748b">
+              <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#94a3b8"></span> Humano (antes del agente)
+              <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#059669;margin-left:8px"></span> Agente HH
+            </div>
+          </div>
+          <div class="chart-wrap" style="height:240px"><canvas id="ch-comparativo"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Tendencias en el tiempo -->
+      <div style="margin-top:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <h3 style="font-size:13px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:.05em">Tendencias en el tiempo</h3>
+          <div style="display:flex;gap:4px">
+            <button id="btn-semanas" onclick="setTendencia('semanas')" style="padding:5px 12px;border:1px solid #e2e8f0;background:#059669;color:#fff;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">Semanas</button>
+            <button id="btn-meses"   onclick="setTendencia('meses')"   style="padding:5px 12px;border:1px solid #e2e8f0;background:#f1f5f9;color:#64748b;border-radius:5px;font-size:11px;cursor:pointer">Meses</button>
+          </div>
+        </div>
+        <div class="chart-row cols-2">
+          <div class="chart-card">
+            <h3>Tasa de resolución autónoma</h3>
+            <p class="chart-subtitle">% de conversaciones resueltas sin transferir al equipo</p>
+            <div class="chart-wrap tall"><canvas id="ch-tend-resolucion"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3>Citas agendadas por el agente</h3>
+            <p class="chart-subtitle">Evolución de citas gestionadas vía IA</p>
+            <div class="chart-wrap tall"><canvas id="ch-tend-citas"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Diagnóstico de citas -->
       <div class="chart-card" style="margin-top:16px">
         <div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="document.getElementById('debug-body').style.display=document.getElementById('debug-body').style.display==='none'?'block':'none'">
           <h3 style="margin:0">🔍 Diagnóstico de citas agendadas</h3>
@@ -460,6 +500,47 @@ function dateRange30() {
     return toYMD(d);
   });
 }
+
+// ── Helpers para tendencias ──
+function getMonthKey(d) {
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+}
+function monthLabel(key) {
+  const [y, mo] = key.split('-');
+  return MESES_ES[parseInt(mo) - 1] + ' ' + String(y).slice(2);
+}
+function getWeekKey(d) {
+  // Lunes de la semana como clave
+  const day = d.getDay();
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  monday.setHours(0, 0, 0, 0);
+  return toYMD(monday);
+}
+function weekLabel(key) {
+  // key = "YYYY-MM-DD" (lunes)
+  const d = new Date(key + 'T00:00:00');
+  return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1);
+}
+// Estado global del toggle de tendencias
+let tendenciaMode = 'semanas';
+function setTendencia(mode) {
+  tendenciaMode = mode;
+  document.getElementById('btn-semanas').style.background = mode === 'semanas' ? '#059669' : '#f1f5f9';
+  document.getElementById('btn-semanas').style.color      = mode === 'semanas' ? '#fff'    : '#64748b';
+  document.getElementById('btn-semanas').style.fontWeight = mode === 'semanas' ? '600'     : '400';
+  document.getElementById('btn-meses').style.background   = mode === 'meses'   ? '#059669' : '#f1f5f9';
+  document.getElementById('btn-meses').style.color        = mode === 'meses'   ? '#fff'    : '#64748b';
+  document.getElementById('btn-meses').style.fontWeight   = mode === 'meses'   ? '600'     : '400';
+  renderTendencias();
+}
+
+// Datos fijos: citas agendadas por humanos (WA, solo CR) antes del agente
+const BASELINE_HUMANO = [
+  { key: '2025-09', citas: 630 },
+  { key: '2025-10', citas: 651 },
+  { key: '2025-11', citas: 547 },
+];
 
 // ══════════════════════════════════════════════════════════════
 //  QUICK DATE BUTTONS
@@ -682,6 +763,176 @@ function momBadge(curr, prev, higherIsBetter = true) {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  COMPARATIVO HUMANO VS IA
+// ══════════════════════════════════════════════════════════════
+function renderComparativo() {
+  // Citas IA por mes (todos los datos del sheet, sin filtro de fecha)
+  const iaPorMes = {};
+  RAW.agendadas.forEach(r => {
+    if (!r.fecha) return;
+    const k = getMonthKey(r.fecha);
+    iaPorMes[k] = (iaPorMes[k] || 0) + 1;
+  });
+
+  // Construir lista de meses ordenados: primero los de baseline, luego los IA
+  const allKeys = new Set([
+    ...BASELINE_HUMANO.map(b => b.key),
+    ...Object.keys(iaPorMes),
+  ]);
+  const sorted = Array.from(allKeys).sort();
+
+  const labels   = sorted.map(monthLabel);
+  const humano   = sorted.map(k => { const b = BASELINE_HUMANO.find(x => x.key === k); return b ? b.citas : 0; });
+  const ia       = sorted.map(k => iaPorMes[k] || 0);
+
+  const ctx = document.getElementById('ch-comparativo');
+  if (!ctx) return;
+  if (CHARTS['ch-comparativo']) CHARTS['ch-comparativo'].destroy();
+  CHARTS['ch-comparativo'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Humano (WA)',
+          data: humano,
+          backgroundColor: '#94a3b8',
+          borderRadius: 4,
+          barPercentage: 0.6,
+        },
+        {
+          label: 'Agente HH',
+          data: ia,
+          backgroundColor: '#059669',
+          borderRadius: 4,
+          barPercentage: 0.6,
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } },
+        tooltip: {
+          callbacks: {
+            afterBody(items) {
+              const idx = items[0].dataIndex;
+              const h = humano[idx], a = ia[idx];
+              if (h > 0 && a > 0) {
+                const diff = a - h;
+                const pctChange = Math.round((diff / h) * 100);
+                return [`Δ vs humano: ${diff >= 0 ? '+' : ''}${diff} (${pctChange >= 0 ? '+' : ''}${pctChange}%)`];
+              }
+              return [];
+            },
+          },
+        },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: { beginAtZero: true, ticks: { font: { size: 11 } }, grid: { color: '#f1f5f9' } },
+      },
+    },
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TENDENCIAS EN EL TIEMPO
+// ══════════════════════════════════════════════════════════════
+function renderTendencias() {
+  const keyFn   = tendenciaMode === 'meses' ? getMonthKey : getWeekKey;
+  const labelFn = tendenciaMode === 'meses' ? monthLabel  : weekLabel;
+
+  // ── Tasa de resolución ──
+  const resBuckets = {};
+  RAW.hh.forEach(r => {
+    if (!r.fecha) return;
+    const k = keyFn(r.fecha);
+    if (!resBuckets[k]) resBuckets[k] = { res: 0, total: 0 };
+    resBuckets[k].total++;
+    if (isResuelta(r)) resBuckets[k].res++;
+  });
+  const resKeys   = Object.keys(resBuckets).sort();
+  const resLabels = resKeys.map(labelFn);
+  const resTasa   = resKeys.map(k => pctNum(resBuckets[k].res, resBuckets[k].total));
+
+  // ── Citas agendadas ──
+  const citaBuckets = {};
+  RAW.agendadas.forEach(r => {
+    if (!r.fecha) return;
+    const k = keyFn(r.fecha);
+    citaBuckets[k] = (citaBuckets[k] || 0) + 1;
+  });
+  const citaKeys   = Object.keys(citaBuckets).sort();
+  const citaLabels = citaKeys.map(labelFn);
+  const citaCounts = citaKeys.map(k => citaBuckets[k]);
+
+  // ── Helpers de línea ──
+  const lineOpts = (color) => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } },
+      y: { beginAtZero: true, ticks: { font: { size: 11 } }, grid: { color: '#f1f5f9' } },
+    },
+    elements: { point: { radius: 3, hoverRadius: 5 } },
+  });
+
+  // Tasa de resolución chart
+  const ctx1 = document.getElementById('ch-tend-resolucion');
+  if (ctx1) {
+    if (CHARTS['ch-tend-resolucion']) CHARTS['ch-tend-resolucion'].destroy();
+    CHARTS['ch-tend-resolucion'] = new Chart(ctx1, {
+      type: 'line',
+      data: {
+        labels: resLabels,
+        datasets: [{
+          label: 'Tasa resolución %',
+          data: resTasa,
+          borderColor: '#059669',
+          backgroundColor: 'rgba(5,150,105,.08)',
+          fill: true,
+          tension: 0.3,
+        }],
+      },
+      options: {
+        ...lineOpts('#059669'),
+        plugins: {
+          ...lineOpts('#059669').plugins,
+          tooltip: { callbacks: { label: ctx => ctx.parsed.y + '%' } },
+        },
+        scales: {
+          ...lineOpts('#059669').scales,
+          y: { ...lineOpts('#059669').scales.y, max: 100,
+               ticks: { ...lineOpts('#059669').scales.y.ticks, callback: v => v + '%' } },
+        },
+      },
+    });
+  }
+
+  // Citas chart
+  const ctx2 = document.getElementById('ch-tend-citas');
+  if (ctx2) {
+    if (CHARTS['ch-tend-citas']) CHARTS['ch-tend-citas'].destroy();
+    CHARTS['ch-tend-citas'] = new Chart(ctx2, {
+      type: 'line',
+      data: {
+        labels: citaLabels,
+        datasets: [{
+          label: 'Citas agendadas',
+          data: citaCounts,
+          borderColor: '#1a73e8',
+          backgroundColor: 'rgba(26,115,232,.08)',
+          fill: true,
+          tension: 0.3,
+        }],
+      },
+      options: lineOpts('#1a73e8'),
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
 //  RENDER
 // ══════════════════════════════════════════════════════════════
 function renderAll() {
@@ -853,24 +1104,30 @@ function renderAll() {
        backgroundColor: ['#059669','#f59e0b','#ef4444'] }],
     { legend: false });
 
-  // ── DEBUG: diagnóstico de citas ──
+  // ── Diagnóstico de citas agendadas ──
   (function buildDebug() {
     const el = document.getElementById('debug-citas-content');
     if (!el) return;
     const inRange = RAW.agendadas.filter(r => r.fecha && inDateRange(r.fecha, f.from, f.to));
-    // Columnas del sheet (primera fila del raw)
-    const rawCols = RAW.agendadas.length > 0 ? Object.keys(RAW.agendadas[0]).filter(k => k !== 'fecha' && k !== '_url') : [];
-    let html = `<p style="margin-bottom:8px"><strong>Total en sheet (post-filtro):</strong> ${RAW.agendadas.length} filas &nbsp;|&nbsp; <strong>En rango seleccionado:</strong> ${inRange.length} filas</p>`;
-    html += `<p style="margin-bottom:8px"><strong>Columnas del sheet:</strong> ${rawCols.map(c=>`<code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">${c}</code>`).join(' ')}</p>`;
-    html += `<p style="margin-bottom:6px"><strong>Primeras 30 filas en el rango (Fecha + todas las columnas):</strong></p>`;
-    html += `<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;width:100%">`;
-    html += `<tr style="background:#f8fafc">${['#','Fecha parseada',...rawCols].map(c=>`<th style="padding:4px 8px;border:1px solid #e2e8f0;white-space:nowrap;text-align:left">${c}</th>`).join('')}</tr>`;
-    inRange.slice(0, 30).forEach((r, i) => {
-      const cells = [i+1, r.fecha ? r.fecha.toLocaleString('es-CR') : '—', ...rawCols.map(c => {
-        const v = String(r[c] || '');
-        return v.startsWith('http') ? `<a href="${v}" target="_blank" style="color:#1a73e8">URL</a>` : (v.length > 40 ? v.slice(0,40)+'…' : v);
-      })];
-      html += `<tr style="${i%2===0?'background:#fff':'background:#f8fafc'}">${cells.map(c=>`<td style="padding:3px 8px;border:1px solid #e2e8f0;white-space:nowrap">${c}</td>`).join('')}</tr>`;
+    // Detectar columnas dinámicamente
+    const sample = RAW.agendadas[0] || {};
+    const urlKey  = Object.keys(sample).find(k => k.trim().toLowerCase().includes('url')) || '';
+    const orgKey  = Object.keys(sample).find(k => k.trim().toLowerCase().includes('co del')) || 'CO del Dr';
+    let html = `<p style="margin-bottom:10px;color:#64748b;font-size:12px">${inRange.length} cita(s) en el rango seleccionado · ${RAW.agendadas.length} totales en el sheet</p>`;
+    html += `<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:12px;width:100%">`;
+    html += `<tr style="background:#f1f5f9"><th style="padding:6px 12px;border:1px solid #e2e8f0;text-align:left">#</th><th style="padding:6px 12px;border:1px solid #e2e8f0;text-align:left">Fecha agendada</th><th style="padding:6px 12px;border:1px solid #e2e8f0;text-align:left">Org ID</th><th style="padding:6px 12px;border:1px solid #e2e8f0;text-align:left">Conversación</th></tr>`;
+    inRange.forEach((r, i) => {
+      const fecha  = r.fecha ? r.fecha.toLocaleString('es-CR', { dateStyle:'short', timeStyle:'short' }) : '—';
+      const orgId  = r[orgKey] || '—';
+      const urlVal = urlKey ? String(r[urlKey] || '') : '';
+      const urlCell = urlVal.startsWith('http') ? `<a href="${urlVal}" target="_blank" style="color:#1a73e8;font-size:11px">Abrir →</a>` : '—';
+      const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
+      html += `<tr style="background:${bg}">
+        <td style="padding:5px 12px;border:1px solid #e2e8f0;color:#94a3b8">${i+1}</td>
+        <td style="padding:5px 12px;border:1px solid #e2e8f0">${fecha}</td>
+        <td style="padding:5px 12px;border:1px solid #e2e8f0;font-weight:600">${orgId}</td>
+        <td style="padding:5px 12px;border:1px solid #e2e8f0">${urlCell}</td>
+      </tr>`;
     });
     html += `</table></div>`;
     el.innerHTML = html;
@@ -884,6 +1141,10 @@ function renderAll() {
       { label: 'Solicitudes', data: sorted.map(e=>e[1]), backgroundColor: '#059669' }
     ], { legend: false, horizontal: true });
   }
+
+  // ── Comparativo y tendencias ──
+  renderComparativo();
+  renderTendencias();
 }
 
 // ══════════════════════════════════════════════════════════════
