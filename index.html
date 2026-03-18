@@ -466,20 +466,19 @@ function fetchCSV(url) {
 //  NORMALIZAR FILAS
 // ══════════════════════════════════════════════════════════════
 function normalizeCitas(rows) {
-  return rows.map(r => {
-    // Construye un mapa con claves normalizadas (sin espacios, minúsculas)
-    // para tolerar "Fecha", " Fecha ", "FECHA", etc.
-    const normalized = {};
-    for (const k of Object.keys(r)) {
-      normalized[k.trim().toLowerCase()] = r[k];
-    }
-
-    // Busca específicamente la columna "Fecha" (fecha de agendamiento)
-    const rawFecha = normalized['fecha'];
-    const fecha = (rawFecha && !isUndef(rawFecha)) ? parseDate(clean(rawFecha)) : null;
-
-    return { ...r, fecha };
-  });
+  return rows
+    // Solo filas que tienen URL — esas son las citas reales
+    .filter(r => Object.values(r).some(v => v && String(v).startsWith('http')))
+    .map(r => {
+      // Claves normalizadas para tolerar espacios/mayúsculas en el header
+      const normalized = {};
+      for (const k of Object.keys(r)) {
+        normalized[k.trim().toLowerCase()] = r[k];
+      }
+      const rawFecha = normalized['fecha'];
+      const fecha = (rawFecha && !isUndef(rawFecha)) ? parseDate(clean(rawFecha)) : null;
+      return { ...r, fecha };
+    });
 }
 
 function normalizeHH(rows) {
