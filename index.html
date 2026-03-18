@@ -970,8 +970,16 @@ function renderTendencias() {
     citaBuckets[k] = (citaBuckets[k] || 0) + 1;
   });
   const citaKeys   = Object.keys(citaBuckets).sort();
-  const citaLabels = citaKeys.map(labelFn);
   const citaCounts = citaKeys.map(k => citaBuckets[k]);
+
+  // Detectar si el último período está incompleto (semana o mes en curso)
+  const currentPeriodKey = keyFn(new Date());
+  const citaLastIsPartial = citaKeys.length > 0 && citaKeys[citaKeys.length - 1] === currentPeriodKey;
+  const resLastIsPartial  = resKeys.length  > 0 && resKeys[resKeys.length - 1]   === currentPeriodKey;
+
+  const citaLabels = citaKeys.map((k, i) =>
+    (i === citaKeys.length - 1 && citaLastIsPartial) ? labelFn(k) + ' ⏳' : labelFn(k)
+  );
 
   // ── Helpers de línea ──
   const lineOpts = (color) => ({
@@ -1020,6 +1028,12 @@ function renderTendencias() {
   const ctx2 = document.getElementById('ch-tend-citas');
   if (ctx2) {
     if (CHARTS['ch-tend-citas']) CHARTS['ch-tend-citas'].destroy();
+    const citaPointColors = citaKeys.map((k, i) =>
+      (i === citaKeys.length - 1 && citaLastIsPartial) ? '#f59e0b' : '#1a73e8'
+    );
+    const citaPointRadius = citaKeys.map((k, i) =>
+      (i === citaKeys.length - 1 && citaLastIsPartial) ? 6 : 3
+    );
     CHARTS['ch-tend-citas'] = new Chart(ctx2, {
       type: 'line',
       data: {
@@ -1031,10 +1045,44 @@ function renderTendencias() {
           backgroundColor: 'rgba(26,115,232,.08)',
           fill: true,
           tension: 0.3,
+          pointBackgroundColor: citaPointColors,
+          pointRadius: citaPointRadius,
+          pointHoverRadius: 7,
         }],
       },
-      options: lineOpts('#1a73e8'),
+      options: {
+        ...lineOpts('#1a73e8'),
+        plugins: {
+          ...lineOpts('#1a73e8').plugins,
+          tooltip: {
+            callbacks: {
+              afterLabel: ctx => (citaLastIsPartial && ctx.dataIndex === citaKeys.length - 1)
+                ? '  ⏳ Semana en curso — dato parcial' : '',
+            }
+          }
+        }
+      },
     });
+  }
+
+  // También marcar el último punto de resolución si está incompleto
+  if (resLastIsPartial) {
+    const resLabelsUpd = resKeys.map((k, i) =>
+      i === resKeys.length - 1 ? labelFn(k) + ' ⏳' : labelFn(k)
+    );
+    // Re-renderizar con el label actualizado si aplica
+    const ctx1b = document.getElementById('ch-tend-resolucion');
+    if (ctx1b && CHARTS['ch-tend-resolucion']) {
+      CHARTS['ch-tend-resolucion'].data.labels = resLabelsUpd;
+      const ptColors = resKeys.map((k, i) =>
+        i === resKeys.length - 1 ? '#f59e0b' : '#059669'
+      );
+      CHARTS['ch-tend-resolucion'].data.datasets[0].pointBackgroundColor = ptColors;
+      CHARTS['ch-tend-resolucion'].data.datasets[0].pointRadius = resKeys.map((k, i) =>
+        i === resKeys.length - 1 ? 6 : 3
+      );
+      CHARTS['ch-tend-resolucion'].update();
+    }
   }
 }
 
