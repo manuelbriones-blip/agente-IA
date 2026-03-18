@@ -724,7 +724,7 @@ const PALETTE = ['#059669','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#06b6d4','#f
 function destroyChart(id) {
   if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; }
 }
-function makeDonut(id, labels, data, colors, onClickFn) {
+function makeDonut(id, labels, data, colors, onClickFn, tooltipExtraFn) {
   destroyChart(id);
   const ctx = document.getElementById(id);
   if (!ctx) return;
@@ -742,7 +742,10 @@ function makeDonut(id, labels, data, colors, onClickFn) {
               const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
               const p = total ? Math.round(ctx.parsed / total * 100) : 0;
               return ` ${ctx.label}: ${ctx.parsed} (${p}%)`;
-            }
+            },
+            afterLabel: tooltipExtraFn
+              ? ctx => tooltipExtraFn(ctx.dataIndex, ctx.label)
+              : undefined,
           }
         }
       },
@@ -1106,7 +1109,7 @@ function renderAll() {
   const pctDerivadas   = total ? Math.round(transferidas / total * 100) : 0;
   const pctSinResol    = total ? Math.round(sinResolucion / total * 100) : 0;
   document.getElementById('kpi-hh').innerHTML =
-    kpiCard('Total conversaciones', total,        'Canal texto',                              'hh',   momBadge(hhC.length, hhP.length),  semaforo('resolucion', tasa)) +
+    kpiCard('Total conversaciones', total,        'Canal texto',                              'hh',   '',  semaforo('resolucion', tasa)) +
     kpiCard('Citas agendadas',      citasTotal,   formatUSD(valorGenerado) + ' generados · ' + RAW.agendadas.length + ' en sheet', 'ok', '', '') +
     kpiCard('Citas canceladas',     canceladas,   pct(canceladas, citasTotal+canceladas) + ' del total', 'warn', '', semaforo('canceladas', pctCanceladas)) +
     kpiCard('Errores en citas',     errores,      pct(errores, citasTotal+errores) + ' del total',       'err',  '', semaforo('errores', pctErrores)) +
@@ -1114,6 +1117,13 @@ function renderAll() {
     kpiCard('Sin resolución',       sinResolucion,pct(sinResolucion,total),                              'err',  momBadge(hhC_imp, hhP_imp, false));
 
   // ── Resultado conversaciones (donut principal, con drill-down) ──
+  // Precalcular desglose por tipo para cada segmento del donut principal
+  const desglosePorSegmento = [
+    countBy(hh.filter(isResuelta).filter(r => r.tipoSolicitud), r => r.tipoSolicitud),
+    countBy(hh.filter(isTransferida).filter(r => r.tipoSolicitud), r => r.tipoSolicitud),
+    countBy(hh.filter(r => !isResuelta(r) && !isTransferida(r)).filter(r => r.tipoSolicitud), r => r.tipoSolicitud),
+  ];
+
   makeDonut('ch-hh-gestion',
     [`Resueltas (${pct(resueltas,total)})`, `Derivadas a humano (${pct(transferidas,total)})`, `Sin resolución (${pct(sinResolucion,total)})`],
     [resueltas, transferidas, sinResolucion],
@@ -1121,7 +1131,6 @@ function renderAll() {
     (label) => {
       if (label.startsWith('Resueltas')) {
         const rows = hh.filter(isResuelta);
-        // Agrupar por tipo de solicitud para el encabezado del modal
         const byTipoRes = countBy(rows, r => r.tipoSolicitud || '(sin tipo)');
         const resumenTipo = Object.entries(byTipoRes)
           .sort((a,b) => b[1]-a[1])
@@ -1133,6 +1142,15 @@ function renderAll() {
       } else {
         openModal('Sin resolución', hh.filter(r => !isResuelta(r) && !isTransferida(r)));
       }
+    },
+    // Tooltip con desglose por tipo inline
+    (idx) => {
+      const byTipo = desglosePorSegmento[idx];
+      if (!byTipo || !Object.keys(byTipo).length) return [];
+      const lines = Object.entries(byTipo)
+        .sort((a,b) => b[1]-a[1])
+        .map(([k,v]) => `  · ${k}: ${v}`);
+      return ['  ─────────────', ...lines];
     }
   );
 
