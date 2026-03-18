@@ -388,23 +388,51 @@ function clean(v) { return isUndef(v) ? '' : String(v).trim(); }
 function isTruthy(v) {
   return ['true','sí','si','yes','1'].includes(clean(v).toLowerCase());
 }
+// ── Pad a 2 dígitos ──
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+// ── toYMD: usa hora LOCAL (no UTC) para que el día sea correcto en Costa Rica ──
+function toYMD(d) {
+  if (!d) return '';
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+
+// ── parseDate: parsea explícitamente como hora local (CR) ──
 function parseDate(str) {
   if (!str) return null;
   let s = String(str).trim()
-    .replace('a.m.','AM').replace('p.m.','PM')
-    .replace('a. m.','AM').replace('p. m.','PM');
+    .replace('a.m.', 'AM').replace('p.m.', 'PM')
+    .replace('a. m.', 'AM').replace('p. m.', 'PM');
 
-  // Maneja formato MM/DD/YY o MM/DD/YY h:mm AM/PM → convierte año 2 dígitos a 4
-  // Ej: "01/17/26 1:30 PM" → "01/17/2026 1:30 PM"
+  // Año de 2 dígitos → 4 dígitos: "01/17/26 1:30 PM" → "01/17/2026 1:30 PM"
   s = s.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{2})(\s|$)/, (_, m, d, y, rest) => {
     const fullYear = parseInt(y) <= 50 ? '20' + y : '19' + y;
     return `${m}/${d}/${fullYear}${rest}`;
   });
 
-  const d = new Date(s);
-  return isNaN(d) ? null : d;
+  // Parsear MM/DD/YYYY h:mm AM/PM explícitamente como hora local
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+  if (m) {
+    let [, mo, dy, yr, hh, mi, ss, ap] = m;
+    let hours = parseInt(hh);
+    if (ap) {
+      ap = ap.toUpperCase();
+      if (ap === 'PM' && hours < 12) hours += 12;
+      if (ap === 'AM' && hours === 12) hours = 0;
+    }
+    const result = new Date(parseInt(yr), parseInt(mo) - 1, parseInt(dy), hours, parseInt(mi), parseInt(ss || 0));
+    return isNaN(result) ? null : result;
+  }
+
+  // Fallback: si viene en formato ISO "YYYY-MM-DD..." agregamos T00:00:00 para forzar local
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const result = new Date(s + 'T00:00:00');
+    return isNaN(result) ? null : result;
+  }
+
+  const result = new Date(s);
+  return isNaN(result) ? null : result;
 }
-function toYMD(d) { return d ? d.toISOString().slice(0,10) : ''; }
 function countBy(arr, fn) {
   return arr.reduce((acc, r) => {
     const k = fn(r) || 'Otro';
@@ -520,7 +548,7 @@ function normalizeHH(rows) {
 // ══════════════════════════════════════════════════════════════
 function getFilters() {
   return {
-    from: document.getElementById('f-from').value ? new Date(document.getElementById('f-from').value) : null,
+    from: document.getElementById('f-from').value ? new Date(document.getElementById('f-from').value + 'T00:00:00') : null,
     to:   document.getElementById('f-to').value   ? new Date(document.getElementById('f-to').value + 'T23:59:59') : null,
     pais: document.getElementById('f-pais').value,
   };
