@@ -645,9 +645,10 @@ function renderAll() {
   const transferidas= hh.filter(isTransferida).length;
   const sinResolucion = total - resueltas - transferidas;
   const f = getFilters();
-  const citasTotal  = RAW.agendadas.filter(r => inDateRange(r.fecha, f.from, f.to)).length;
-  const canceladas  = RAW.canceladas.filter(r => inDateRange(r.fecha, f.from, f.to)).length;
-  const errores     = RAW.errores.filter(r => inDateRange(r.fecha, f.from, f.to)).length;
+  // Solo contar citas que tienen fecha válida Y caen en el rango
+  const citasTotal  = RAW.agendadas.filter(r => r.fecha && inDateRange(r.fecha, f.from, f.to)).length;
+  const canceladas  = RAW.canceladas.filter(r => r.fecha && inDateRange(r.fecha, f.from, f.to)).length;
+  const errores     = RAW.errores.filter(r => r.fecha && inDateRange(r.fecha, f.from, f.to)).length;
 
   const baseHH = filterBaseHH();
   const hhC = getMonthRows(baseHH, 0);
@@ -710,12 +711,80 @@ function renderAll() {
   );
 
   // ── Actividad diaria ──
-  const days = dateRange30();
+  const DIAS_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const days    = dateRange30();
   const hhByDay = days.map(d => hh.filter(r => r.fecha && toYMD(r.fecha) === d).length);
-  makeLine('ch-hh-diario', days.map(d => d.slice(5)), [
-    { label: 'Conversaciones', data: hhByDay, borderColor: '#059669',
-      backgroundColor: 'rgba(5,150,105,.12)', tension: .3, fill: true, pointRadius: 3 }
-  ]);
+  const avgVal  = hhByDay.filter(v => v > 0).length
+    ? Math.round(hhByDay.filter(v => v > 0).reduce((a,b) => a+b, 0) / hhByDay.filter(v => v > 0).length)
+    : 0;
+
+  // Colores por día: fin de semana = gris, entre semana = verde
+  const pointColors = days.map(d => {
+    const dow = new Date(d + 'T12:00:00').getDay();
+    return (dow === 0 || dow === 6) ? '#94a3b8' : '#059669';
+  });
+
+  // Etiquetas: "Lun 02-17", marcando fin de semana con *
+  const dayLabels = days.map(d => {
+    const date = new Date(d + 'T12:00:00');
+    const dow  = date.getDay();
+    const prefix = (dow === 0 || dow === 6) ? '🔸' : '';
+    return prefix + DIAS_ES[dow] + ' ' + d.slice(5);
+  });
+
+  destroyChart('ch-hh-diario');
+  const ctxD = document.getElementById('ch-hh-diario');
+  if (ctxD) {
+    CHARTS['ch-hh-diario'] = new Chart(ctxD, {
+      type: 'line',
+      data: {
+        labels: dayLabels,
+        datasets: [
+          {
+            label: 'Conversaciones por día',
+            data: hhByDay,
+            borderColor: '#059669',
+            backgroundColor: 'rgba(5,150,105,.1)',
+            tension: .3, fill: true,
+            pointRadius: 5,
+            pointBackgroundColor: pointColors,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+          },
+          {
+            label: `Promedio días hábiles (${avgVal})`,
+            data: hhByDay.map(() => avgVal),
+            borderColor: '#94a3b8',
+            borderDash: [6, 4],
+            pointRadius: 0,
+            fill: false,
+            tension: 0,
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              title: ctx => ctx[0].label.replace('🔸',''),
+              label: ctx => {
+                if (ctx.datasetIndex === 1) return ` Promedio: ${avgVal} conv.`;
+                const dow = new Date(days[ctx.dataIndex] + 'T12:00:00').getDay();
+                const esFinDeSemana = dow === 0 || dow === 6;
+                return ` ${ctx.parsed.y} conversaciones${esFinDeSemana ? ' (fin de semana)' : ''}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 }, maxTicksLimit: 12 } },
+          y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } }, beginAtZero: true },
+        }
+      }
+    });
+  }
 
   // ── Tipo de solicitud ──
   const byTipo = countBy(hh, r => r.tipoSolicitud || 'Sin dato');
