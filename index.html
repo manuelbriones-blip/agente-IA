@@ -351,7 +351,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
         <div class="chart-card">
           <h3>Resultado de las conversaciones</h3>
           <p class="chart-subtitle">¿Qué pasó con cada conversación atendida?</p>
-          <p class="clickable-hint">👆 Clic en un segmento para ver el detalle</p>
+          <p class="clickable-hint">Clic en un segmento para ver el detalle</p>
           <div class="chart-wrap"><canvas id="ch-hh-gestion"></canvas></div>
         </div>
         <div class="chart-card">
@@ -365,18 +365,18 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
         <div class="chart-card">
           <h3>Tipo de solicitud</h3>
           <p class="chart-subtitle">¿Qué pidieron los pacientes?</p>
-          <p class="clickable-hint">👆 Clic en un segmento para ver el detalle</p>
+          <p class="clickable-hint">Clic en un segmento para ver el detalle</p>
           <div class="chart-wrap"><canvas id="ch-hh-solicitud"></canvas></div>
         </div>
         <div class="chart-card">
           <h3>Resultado de la gestión</h3>
-          <p class="clickable-hint">👆 Clic en un segmento para ver el detalle</p>
+          <p class="clickable-hint">Clic en un segmento para ver el detalle</p>
           <div class="chart-wrap"><canvas id="ch-hh-estatus"></canvas></div>
         </div>
         <div class="chart-card">
           <h3>Sentimiento del paciente</h3>
           <p class="chart-subtitle">Tono detectado al cierre</p>
-          <p class="clickable-hint">👆 Clic en un segmento para ver el detalle</p>
+          <p class="clickable-hint">Clic en un segmento para ver el detalle</p>
           <div class="chart-wrap"><canvas id="ch-hh-sentimiento"></canvas></div>
         </div>
       </div>
@@ -438,7 +438,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
       <!-- Diagnóstico de citas -->
       <div class="chart-card" style="margin-top:16px">
         <div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="document.getElementById('debug-body').style.display=document.getElementById('debug-body').style.display==='none'?'block':'none'">
-          <h3 style="margin:0">🔍 Diagnóstico de citas agendadas</h3>
+          <h3 style="margin:0">Diagnóstico de citas agendadas</h3>
           <span style="font-size:11px;color:#64748b">(clic para expandir/colapsar)</span>
         </div>
         <div id="debug-body" style="display:none;margin-top:12px">
@@ -978,7 +978,7 @@ function renderTendencias() {
   const resLastIsPartial  = resKeys.length  > 0 && resKeys[resKeys.length - 1]   === currentPeriodKey;
 
   const citaLabels = citaKeys.map((k, i) =>
-    (i === citaKeys.length - 1 && citaLastIsPartial) ? labelFn(k) + ' ⏳' : labelFn(k)
+    (i === citaKeys.length - 1 && citaLastIsPartial) ? labelFn(k) + ' (en curso)' : labelFn(k)
   );
 
   // ── Helpers de línea ──
@@ -1057,7 +1057,7 @@ function renderTendencias() {
           tooltip: {
             callbacks: {
               afterLabel: ctx => (citaLastIsPartial && ctx.dataIndex === citaKeys.length - 1)
-                ? '  ⏳ Semana en curso — dato parcial' : '',
+                ? '  Semana en curso — dato parcial' : '',
             }
           }
         }
@@ -1068,7 +1068,7 @@ function renderTendencias() {
   // También marcar el último punto de resolución si está incompleto
   if (resLastIsPartial) {
     const resLabelsUpd = resKeys.map((k, i) =>
-      i === resKeys.length - 1 ? labelFn(k) + ' ⏳' : labelFn(k)
+      i === resKeys.length - 1 ? labelFn(k) + ' (en curso)' : labelFn(k)
     );
     // Re-renderizar con el label actualizado si aplica
     const ctx1b = document.getElementById('ch-tend-resolucion');
@@ -1123,7 +1123,7 @@ function renderAll() {
   // ── Insight cards ──
   document.getElementById('insight-row').innerHTML = `
     <div class="insight-card green">
-      <div class="insight-icon">✅</div>
+      <div class="insight-icon">&#10003;</div>
       <div class="insight-text">
         <div class="it-label">Resueltas sin transferir</div>
         <div class="it-val">${resueltas} <span style="font-size:14px;font-weight:600">(${pct(resueltas,total)})</span></div>
@@ -1131,7 +1131,7 @@ function renderAll() {
       </div>
     </div>
     <div class="insight-card amber">
-      <div class="insight-icon">↗️</div>
+      <div class="insight-icon">&#8599;</div>
       <div class="insight-text">
         <div class="it-label">Derivadas a humano</div>
         <div class="it-val">${transferidas} <span style="font-size:14px;font-weight:600">(${pct(transferidas,total)})</span></div>
@@ -1139,7 +1139,7 @@ function renderAll() {
       </div>
     </div>
     <div class="insight-card red">
-      <div class="insight-icon">⚠️</div>
+      <div class="insight-icon">&#9651;</div>
       <div class="insight-text">
         <div class="it-label">Sin resolución</div>
         <div class="it-val">${sinResolucion} <span style="font-size:14px;font-weight:600">(${pct(sinResolucion,total)})</span></div>
@@ -1216,7 +1216,7 @@ function renderAll() {
   const dayLabels = days.map(d => {
     const date = new Date(d + 'T12:00:00');
     const dow  = date.getDay();
-    const prefix = (dow === 0 || dow === 6) ? '🔸' : '';
+    const prefix = (dow === 0 || dow === 6) ? '* ' : '';
     return prefix + DIAS_ES[dow] + ' ' + d.slice(5);
   });
 
@@ -1256,7 +1256,7 @@ function renderAll() {
           legend: { labels: { font: { size: 11 } } },
           tooltip: {
             callbacks: {
-              title: ctx => ctx[0].label.replace('🔸',''),
+              title: ctx => ctx[0].label.replace('* ',''),
               label: ctx => {
                 if (ctx.datasetIndex === 1) return ` Promedio: ${avgVal} conv.`;
                 const dow = new Date(days[ctx.dataIndex] + 'T12:00:00').getDay();
@@ -1442,7 +1442,7 @@ function resetCountdown() {
   <div class="modal-box">
     <div class="modal-header">
       <h3 id="modal-title">Detalle</h3>
-      <button class="modal-close" onclick="closeModal()">✕</button>
+      <button class="modal-close" onclick="closeModal()">&#215;</button>
     </div>
     <div class="modal-body">
       <div id="modal-content"></div>
