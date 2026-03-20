@@ -971,12 +971,17 @@ function renderComparativo() {
     iaPorMes[k] = (iaPorMes[k] || 0) + 1;
   });
 
-  // ── Citas humanos 2026 por mes (nuevo sheet) ──
-  const humanos26PorMes = {};
+  // ── Citas humanos 2026 por mes y por agente (nuevo sheet) ──
+  const humanos26PorMes    = {};
+  const humanos26PorAgente = {}; // { '2026-03': { narias: 5, scalderon: 3, ... } }
   RAW.humanos2026.forEach(r => {
     if (!r.fecha) return;
     const k = getMonthKey(r.fecha);
     humanos26PorMes[k] = (humanos26PorMes[k] || 0) + 1;
+    if (r.agente) {
+      if (!humanos26PorAgente[k]) humanos26PorAgente[k] = {};
+      humanos26PorAgente[k][r.agente] = (humanos26PorAgente[k][r.agente] || 0) + 1;
+    }
   });
 
   // Arrays alineados a los 12 meses
@@ -1073,8 +1078,17 @@ function renderComparativo() {
               // 2026
               if (t26 > 0) {
                 lines.push('2026 — con agente IA');
-                if (ia  > 0) lines.push(`  · Agente IA: ${ia}`);
-                if (h26 > 0) lines.push(`  · Humanos:   ${h26}`);
+                if (ia > 0) lines.push(`  · Agente IA: ${ia}`);
+                if (h26 > 0) {
+                  lines.push(`  · Humanos: ${h26}`);
+                  const mesKey = '2026-' + MESES_NUM[idx];
+                  const desglose = humanos26PorAgente[mesKey];
+                  if (desglose) {
+                    Object.entries(desglose)
+                      .sort((a, b) => b[1] - a[1])
+                      .forEach(([ag, v]) => lines.push(`      · ${ag}: ${v}`));
+                  }
+                }
                 lines.push(`  Total: ${t26}`);
               }
 
