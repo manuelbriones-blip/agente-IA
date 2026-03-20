@@ -398,17 +398,16 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
       <!-- Comparativo Humano vs IA -->
       <div class="chart-row cols-1" style="margin-top:16px">
         <div class="chart-card">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
-            <div>
-              <h3>Citas agendadas: Humano vs Agente IA</h3>
-              <p class="chart-subtitle">Comparativo mensual — canal WhatsApp CR · Sept 2025 en adelante</p>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#64748b">
-              <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#94a3b8"></span> Humano (antes del agente)
-              <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#059669;margin-left:8px"></span> Agente HH
+          <div style="margin-bottom:4px">
+            <h3>Citas agendadas: 2025 (solo humanos) vs 2026 (humanos + agente IA)</h3>
+            <p class="chart-subtitle">Comparativo año a año — canal WhatsApp CR</p>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#64748b">
+              <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#64748b"></span> Humanos 2025
+              <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#059669"></span> Agente IA 2026
+              <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#93c5fd"></span> Humanos 2026
             </div>
           </div>
-          <div class="chart-wrap" style="height:240px"><canvas id="ch-comparativo"></canvas></div>
+          <div class="chart-wrap" style="height:260px"><canvas id="ch-comparativo"></canvas></div>
         </div>
       </div>
 
@@ -467,15 +466,16 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
 const SHEETS = {
   hh:         'https://docs.google.com/spreadsheets/d/e/2PACX-1vR_X-VGh7zQIEX_1tbzbpRHwwFvb0f0fB1AuW_6h8EJcpNK0fb70F_1P9BlnLKbi7c0TeMQDMox1oa0/pub?gid=642577577&single=true&output=csv',
   hh2:        'https://docs.google.com/spreadsheets/d/e/2PACX-1vR-uSaPB7Ol1wGU9j9Z24hl80Xh7MtyoEqZOKYMog7WgAAMSH27z1tmT_pcttf8Xr9QRveUfWJjlDPp/pub?gid=0&single=true&output=csv',
-  agendadas:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=0&single=true&output=csv',
-  canceladas: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=1031644821&single=true&output=csv',
-  errores:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=228103906&single=true&output=csv',
+  agendadas:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=0&single=true&output=csv',
+  canceladas:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=1031644821&single=true&output=csv',
+  errores:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=228103906&single=true&output=csv',
+  humanos2026:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRvjJzgW1ZEgJ_-E6gXydfoQdEMh7Mf-672mzL0Y9gfXCaLy2z1qutFGuq0hFwUs_jo1O7vpCqTq9QQ/pub?output=csv',
 };
 
 // ══════════════════════════════════════════════════════════════
 //  ESTADO GLOBAL
 // ══════════════════════════════════════════════════════════════
-let RAW = { hh: [], agendadas: [], canceladas: [], errores: [] };
+let RAW = { hh: [], agendadas: [], canceladas: [], errores: [], humanos2026: [] };
 let CHARTS = {};
 
 // ══════════════════════════════════════════════════════════════
@@ -963,61 +963,35 @@ function renderComparativo() {
   const MESES_NUM   = ['01','02','03','04','05','06','07','08','09','10','11','12'];
   const MESES_LABEL = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Set','Oct','Nov','Dic'];
 
-  // Citas IA por mes 2026 (todos los datos del sheet, sin filtro de fecha)
+  // ── Citas IA 2026 por mes ──
   const iaPorMes = {};
   RAW.agendadas.forEach(r => {
     if (!r.fecha) return;
-    const k = getMonthKey(r.fecha); // e.g. '2026-01'
+    const k = getMonthKey(r.fecha);
     iaPorMes[k] = (iaPorMes[k] || 0) + 1;
   });
 
-  // Totales humanos por mes (para tooltip comparativo)
-  const humanoTotals = MESES_NUM.map(m => {
+  // ── Citas humanos 2026 por mes (nuevo sheet) ──
+  const humanos26PorMes = {};
+  RAW.humanos2026.forEach(r => {
+    if (!r.fecha) return;
+    const k = getMonthKey(r.fecha);
+    humanos26PorMes[k] = (humanos26PorMes[k] || 0) + 1;
+  });
+
+  // Arrays alineados a los 12 meses
+  const humanos2025 = MESES_NUM.map(m => {
     const entry = HUMANO_DATA['2025-' + m];
     return entry ? entry.total : 0;
   });
+  const iaData       = MESES_NUM.map(m => iaPorMes['2026-' + m]       || 0);
+  const humanos26    = MESES_NUM.map(m => humanos26PorMes['2026-' + m] || 0);
+  const total2026    = MESES_NUM.map((_, i) => iaData[i] + humanos26[i]);
 
-  // Datos IA 2026 alineados por mes (posición 0 = Ene, etc.)
-  const iaData = MESES_NUM.map(m => iaPorMes['2026-' + m] || 0);
-
-  // Lista de todos los agentes que aparecen en el histórico
+  // ── Desglose 2025 por agente (solo para tooltip) ──
   const agentesSet = new Set();
   Object.values(HUMANO_DATA).forEach(d => Object.keys(d.agentes).forEach(a => agentesSet.add(a)));
-  const agentes = Array.from(agentesSet).sort();
-
-  // Paleta de colores para agentes (tonos azul-gris profesionales)
-  const PALETA = ['#1e3a5f','#2563eb','#3b82f6','#60a5fa','#475569','#64748b','#94a3b8','#cbd5e1'];
-  const colorPorAgente = {};
-  agentes.forEach((ag, i) => { colorPorAgente[ag] = PALETA[i % PALETA.length]; });
-
-  // Dataset por agente (stack 'humano-2025')
-  const agentDatasets = agentes.map((ag, i) => ({
-    label: ag,
-    data: MESES_NUM.map(m => {
-      const entry = HUMANO_DATA['2025-' + m];
-      return entry ? (entry.agentes[ag] || 0) : 0;
-    }),
-    backgroundColor: colorPorAgente[ag],
-    stack: 'humano',
-    barPercentage: 0.45,
-    categoryPercentage: 0.8,
-    borderRadius: i === agentes.length - 1
-      ? { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 }
-      : 0,
-    borderSkipped: false,
-  }));
-
-  // Dataset Agente IA 2026 (stack propio)
-  const iaDataset = {
-    label: 'Agente IA (2026)',
-    data: iaData,
-    backgroundColor: '#059669',
-    stack: 'ia',
-    barPercentage: 0.45,
-    categoryPercentage: 0.8,
-    borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
-    borderSkipped: false,
-  };
+  const agentes2025 = Array.from(agentesSet).sort();
 
   const ctx = document.getElementById('ch-comparativo');
   if (!ctx) return;
@@ -1027,34 +1001,92 @@ function renderComparativo() {
     type: 'bar',
     data: {
       labels: MESES_LABEL,
-      datasets: [...agentDatasets, iaDataset],
+      datasets: [
+        // 2025 — barra única gris por mes
+        {
+          label: 'Humanos 2025',
+          data: humanos2025,
+          backgroundColor: '#64748b',
+          stack: 'y2025',
+          barPercentage: 0.4,
+          categoryPercentage: 0.8,
+          borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+          borderSkipped: false,
+        },
+        // 2026 — Agente IA (verde, base de la barra 2026)
+        {
+          label: 'Agente IA 2026',
+          data: iaData,
+          backgroundColor: '#059669',
+          stack: 'y2026',
+          barPercentage: 0.4,
+          categoryPercentage: 0.8,
+          borderRadius: 0,
+          borderSkipped: false,
+        },
+        // 2026 — Humanos encima del IA (azul claro)
+        {
+          label: 'Humanos 2026',
+          data: humanos26,
+          backgroundColor: '#93c5fd',
+          stack: 'y2026',
+          barPercentage: 0.4,
+          categoryPercentage: 0.8,
+          borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+          borderSkipped: false,
+        },
+      ],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: {
-          display: true, position: 'top',
-          labels: { font: { size: 11 }, boxWidth: 12, padding: 16 },
+          display: false, // leyenda manual en el HTML
         },
         tooltip: {
-          filter: item => item.parsed.y > 0,
           callbacks: {
+            title: items => MESES_LABEL[items[0].dataIndex],
+            beforeBody: () => [],
+            label: () => null,
             afterBody(items) {
               const idx = items[0].dataIndex;
-              const totalH = humanoTotals[idx];
-              const totalIA = iaData[idx];
+              const h25 = humanos2025[idx];
+              const ia  = iaData[idx];
+              const h26 = humanos26[idx];
+              const t26 = ia + h26;
               const lines = [];
-              if (totalH > 0) lines.push(`── Total humanos 2025: ${totalH}`);
-              if (totalIA > 0) {
-                lines.push(`── Agente IA 2026: ${totalIA}`);
-                if (totalH > 0) {
-                  const diff = totalIA - totalH;
-                  const pct  = Math.round((diff / totalH) * 100);
-                  lines.push(`Δ citas: ${diff >= 0 ? '+' : ''}${diff} (${pct >= 0 ? '+' : ''}${pct}%)`);
-                  lines.push(`Δ valor: ${diff >= 0 ? '+' : ''}${formatUSD(diff * CITA_VALOR)} vs humano`);
-                }
+
+              // 2025
+              lines.push('2025 — solo humanos');
+              // desglose por agente
+              const entry = HUMANO_DATA['2025-' + MESES_NUM[idx]];
+              if (entry) {
+                agentes2025.forEach(ag => {
+                  const v = entry.agentes[ag] || 0;
+                  if (v > 0) lines.push(`  · ${ag}: ${v}`);
+                });
               }
+              lines.push(`  Total: ${h25}`);
+              lines.push('');
+
+              // 2026
+              if (t26 > 0) {
+                lines.push('2026 — con agente IA');
+                if (ia  > 0) lines.push(`  · Agente IA: ${ia}`);
+                if (h26 > 0) lines.push(`  · Humanos:   ${h26}`);
+                lines.push(`  Total: ${t26}`);
+              }
+
+              // Delta
+              if (h25 > 0 && t26 > 0) {
+                lines.push('');
+                const diff = t26 - h25;
+                const pct  = Math.round((diff / h25) * 100);
+                lines.push(`Variacion: ${diff >= 0 ? '+' : ''}${diff} citas (${pct >= 0 ? '+' : ''}${pct}%)`);
+                lines.push(`Δ valor: ${diff >= 0 ? '+' : ''}${formatUSD(diff * CITA_VALOR)}`);
+              }
+
               return lines;
             },
           },
@@ -1503,12 +1535,13 @@ async function reloadData() {
   document.getElementById('loader').style.display = 'flex';
   document.getElementById('loader-msg').textContent = 'Cargando datos...';
   try {
-    const [hh1raw, hh2raw, agendadas, canceladas, errores] = await Promise.all([
+    const [hh1raw, hh2raw, agendadas, canceladas, errores, humanos2026raw] = await Promise.all([
       fetchCSV(SHEETS.hh),
       fetchCSV(SHEETS.hh2),
       fetchCSV(SHEETS.agendadas),
       fetchCSV(SHEETS.canceladas),
       fetchCSV(SHEETS.errores),
+      fetchCSV(SHEETS.humanos2026),
     ]);
     // Mergear los dos sheets de HH — deduplicar por URL de conversación
     const hh1 = normalizeHH(hh1raw);
@@ -1524,6 +1557,18 @@ async function reloadData() {
     RAW.agendadas  = normalizeCitas(agendadas.filter(r => Object.values(r).some(v => v && !isUndef(v))));
     RAW.canceladas = normalizeCitas(canceladas.filter(r => Object.values(r).some(v => v && !isUndef(v))));
     RAW.errores    = normalizeCitas(errores.filter(r => Object.values(r).some(v => v && !isUndef(v))));
+    // Humanos 2026: columnas Fecha y Agente
+    RAW.humanos2026 = humanos2026raw
+      .filter(r => Object.values(r).some(v => v && !isUndef(v)))
+      .map(r => {
+        const norm = {};
+        for (const k of Object.keys(r)) norm[k.trim().toLowerCase()] = r[k];
+        const rawFecha = norm['fecha'];
+        const fecha = rawFecha ? parseDate(clean(String(rawFecha))) : null;
+        const agente = clean(norm['agente'] || norm['agent'] || '');
+        return { fecha, agente };
+      })
+      .filter(r => r.fecha);
     document.getElementById('last-update').textContent =
       'Actualizado: ' + new Date().toLocaleTimeString('es-CR');
     renderAll();
