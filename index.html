@@ -588,12 +588,21 @@ function setTendencia(mode) {
   renderTendencias();
 }
 
-// Datos fijos: citas agendadas por humanos (WA, solo CR) antes del agente
-const BASELINE_HUMANO = [
-  { key: '2025-09', citas: 630 },
-  { key: '2025-10', citas: 651 },
-  { key: '2025-11', citas: 547 },
-];
+// Datos históricos: citas agendadas por humanos (WA, solo CR) — año 2025 completo
+const HUMANO_DATA = {
+  '2025-01': { total: 872,  agentes: { dgarro: 1,   jquesada: 282, lchaves: 257, yulloa: 332 } },
+  '2025-02': { total: 715,  agentes: { dgarro: 7,   jquesada: 230, lchaves: 213, mmora: 3,   yulloa: 262 } },
+  '2025-03': { total: 725,  agentes: { dgarro: 18,  jquesada: 227, lchaves: 217, yulloa: 263 } },
+  '2025-04': { total: 684,  agentes: { jquesada: 203, lchaves: 243, yulloa: 238 } },
+  '2025-05': { total: 807,  agentes: { dgarro: 12,  jquesada: 258, lchaves: 230, yulloa: 307 } },
+  '2025-06': { total: 715,  agentes: { dgarro: 3,   jquesada: 228, lchaves: 229, mmora: 1,   yulloa: 254 } },
+  '2025-07': { total: 765,  agentes: { dgarro: 12,  jquesada: 254, lchaves: 222, yulloa: 277 } },
+  '2025-08': { total: 709,  agentes: { jquesada: 255, lchaves: 199, mmora: 4,   yulloa: 251 } },
+  '2025-09': { total: 630,  agentes: { dgarro: 100, jquesada: 40,  lchaves: 197, mmora: 105, yulloa: 188 } },
+  '2025-10': { total: 651,  agentes: { dgarro: 13,  jquesada: 230, lchaves: 177, mmora: 9,   scalderon: 6,   yulloa: 216 } },
+  '2025-11': { total: 547,  agentes: { jquesada: 203, lchaves: 1,  mmora: 172,  mzelaya: 23, scalderon: 142, yulloa: 6 } },
+  '2025-12': { total: 487,  agentes: { dgarro: 2,   jquesada: 205, mmora: 133,  mzelaya: 13, scalderon: 117, vvarelam: 17 } },
+};
 
 // ══════════════════════════════════════════════════════════════
 //  QUICK DATE BUTTONS
@@ -868,75 +877,114 @@ function momBadge(curr, prev, higherIsBetter = true) {
 //  COMPARATIVO HUMANO VS IA
 // ══════════════════════════════════════════════════════════════
 function renderComparativo() {
-  // Citas IA por mes (todos los datos del sheet, sin filtro de fecha)
+  const MESES_NUM   = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+  const MESES_LABEL = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Set','Oct','Nov','Dic'];
+
+  // Citas IA por mes 2026 (todos los datos del sheet, sin filtro de fecha)
   const iaPorMes = {};
   RAW.agendadas.forEach(r => {
     if (!r.fecha) return;
-    const k = getMonthKey(r.fecha);
+    const k = getMonthKey(r.fecha); // e.g. '2026-01'
     iaPorMes[k] = (iaPorMes[k] || 0) + 1;
   });
 
-  // Construir lista de meses ordenados: primero los de baseline, luego los IA
-  const allKeys = new Set([
-    ...BASELINE_HUMANO.map(b => b.key),
-    ...Object.keys(iaPorMes),
-  ]);
-  const sorted = Array.from(allKeys).sort();
+  // Totales humanos por mes (para tooltip comparativo)
+  const humanoTotals = MESES_NUM.map(m => {
+    const entry = HUMANO_DATA['2025-' + m];
+    return entry ? entry.total : 0;
+  });
 
-  const labels   = sorted.map(monthLabel);
-  const humano   = sorted.map(k => { const b = BASELINE_HUMANO.find(x => x.key === k); return b ? b.citas : 0; });
-  const ia       = sorted.map(k => iaPorMes[k] || 0);
+  // Datos IA 2026 alineados por mes (posición 0 = Ene, etc.)
+  const iaData = MESES_NUM.map(m => iaPorMes['2026-' + m] || 0);
+
+  // Lista de todos los agentes que aparecen en el histórico
+  const agentesSet = new Set();
+  Object.values(HUMANO_DATA).forEach(d => Object.keys(d.agentes).forEach(a => agentesSet.add(a)));
+  const agentes = Array.from(agentesSet).sort();
+
+  // Paleta de colores para agentes (tonos azul-gris profesionales)
+  const PALETA = ['#1e3a5f','#2563eb','#3b82f6','#60a5fa','#475569','#64748b','#94a3b8','#cbd5e1'];
+  const colorPorAgente = {};
+  agentes.forEach((ag, i) => { colorPorAgente[ag] = PALETA[i % PALETA.length]; });
+
+  // Dataset por agente (stack 'humano-2025')
+  const agentDatasets = agentes.map((ag, i) => ({
+    label: ag,
+    data: MESES_NUM.map(m => {
+      const entry = HUMANO_DATA['2025-' + m];
+      return entry ? (entry.agentes[ag] || 0) : 0;
+    }),
+    backgroundColor: colorPorAgente[ag],
+    stack: 'humano',
+    barPercentage: 0.45,
+    categoryPercentage: 0.8,
+    borderRadius: i === agentes.length - 1
+      ? { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 }
+      : 0,
+    borderSkipped: false,
+  }));
+
+  // Dataset Agente IA 2026 (stack propio)
+  const iaDataset = {
+    label: 'Agente IA (2026)',
+    data: iaData,
+    backgroundColor: '#059669',
+    stack: 'ia',
+    barPercentage: 0.45,
+    categoryPercentage: 0.8,
+    borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+    borderSkipped: false,
+  };
 
   const ctx = document.getElementById('ch-comparativo');
   if (!ctx) return;
   if (CHARTS['ch-comparativo']) CHARTS['ch-comparativo'].destroy();
+
   CHARTS['ch-comparativo'] = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels,
-      datasets: [
-        {
-          label: 'Humano (WA)',
-          data: humano,
-          backgroundColor: '#94a3b8',
-          borderRadius: 4,
-          barPercentage: 0.6,
-        },
-        {
-          label: 'Agente HH',
-          data: ia,
-          backgroundColor: '#059669',
-          borderRadius: 4,
-          barPercentage: 0.6,
-        },
-      ],
+      labels: MESES_LABEL,
+      datasets: [...agentDatasets, iaDataset],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: true, position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } },
+        legend: {
+          display: true, position: 'top',
+          labels: { font: { size: 11 }, boxWidth: 12, padding: 16 },
+        },
         tooltip: {
+          filter: item => item.parsed.y > 0,
           callbacks: {
             afterBody(items) {
               const idx = items[0].dataIndex;
-              const h = humano[idx], a = ia[idx];
-              if (h > 0 && a > 0) {
-                const diff = a - h;
-                const pctChange = Math.round((diff / h) * 100);
-                const valorDiff = diff * CITA_VALOR;
-                return [
-                  `Δ citas: ${diff >= 0 ? '+' : ''}${diff} (${pctChange >= 0 ? '+' : ''}${pctChange}%)`,
-                  `Δ valor: ${diff >= 0 ? '+' : ''}${formatUSD(valorDiff)} vs humano`,
-                ];
+              const totalH = humanoTotals[idx];
+              const totalIA = iaData[idx];
+              const lines = [];
+              if (totalH > 0) lines.push(`── Total humanos 2025: ${totalH}`);
+              if (totalIA > 0) {
+                lines.push(`── Agente IA 2026: ${totalIA}`);
+                if (totalH > 0) {
+                  const diff = totalIA - totalH;
+                  const pct  = Math.round((diff / totalH) * 100);
+                  lines.push(`Δ citas: ${diff >= 0 ? '+' : ''}${diff} (${pct >= 0 ? '+' : ''}${pct}%)`);
+                  lines.push(`Δ valor: ${diff >= 0 ? '+' : ''}${formatUSD(diff * CITA_VALOR)} vs humano`);
+                }
               }
-              return [];
+              return lines;
             },
           },
         },
       },
       scales: {
         x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-        y: { beginAtZero: true, ticks: { font: { size: 11 } }, grid: { color: '#f1f5f9' } },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          ticks: { font: { size: 11 } },
+          grid: { color: '#f1f5f9' },
+        },
       },
     },
   });
