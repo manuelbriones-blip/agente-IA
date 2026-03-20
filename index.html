@@ -469,7 +469,7 @@ const SHEETS = {
   agendadas:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=0&single=true&output=csv',
   canceladas:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=1031644821&single=true&output=csv',
   errores:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=228103906&single=true&output=csv',
-  humanos2026:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRvjJzgW1ZEgJ_-E6gXydfoQdEMh7Mf-672mzL0Y9gfXCaLy2z1qutFGuq0hFwUs_jo1O7vpCqTq9QQ/pub?output=csv',
+  humanos2026:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRvjJzgW1ZEgJ_-E6gXydfoQdEMh7Mf-672mzL0Y9gfXCaLy2z1qutFGuq0hFwUs_jo1O7vpCqTq9QQ/pub?gid=0&single=true&output=csv',
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -1055,50 +1055,56 @@ function renderComparativo() {
             beforeBody: () => [],
             label: () => null,
             afterBody(items) {
-              const idx = items[0].dataIndex;
-              const h25 = humanos2025[idx];
-              const ia  = iaData[idx];
-              const h26 = humanos26[idx];
-              const t26 = ia + h26;
+              const idx  = items[0].dataIndex;
+              const h25  = humanos2025[idx];
+              const ia   = iaData[idx];
+              const h26  = humanos26[idx];
+              const t26  = ia + h26;
               const lines = [];
 
-              // 2025
-              lines.push('2025 — solo humanos');
-              // desglose por agente
+              // Helpers
+              const fmt = (ag, v) => `${ag} (${v})`;
+              const chunk = (arr, n) => {
+                const out = [];
+                for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i+n).join('  '));
+                return out;
+              };
+
+              // ── 2025 ──
+              lines.push(`2025  |  Total: ${h25}`);
               const entry = HUMANO_DATA['2025-' + MESES_NUM[idx]];
               if (entry) {
-                agentes2025.forEach(ag => {
-                  const v = entry.agentes[ag] || 0;
-                  if (v > 0) lines.push(`  · ${ag}: ${v}`);
-                });
+                const pares = Object.entries(entry.agentes)
+                  .filter(([, v]) => v > 0)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([ag, v]) => fmt(ag, v));
+                chunk(pares, 3).forEach(l => lines.push('  ' + l));
               }
-              lines.push(`  Total: ${h25}`);
-              lines.push('');
 
-              // 2026
+              // ── 2026 ──
               if (t26 > 0) {
-                lines.push('2026 — con agente IA');
-                if (ia > 0) lines.push(`  · Agente IA: ${ia}`);
+                lines.push('');
+                lines.push(`2026  |  Total: ${t26}`);
+                if (ia  > 0) lines.push(`  Agente IA: ${ia}`);
                 if (h26 > 0) {
-                  lines.push(`  · Humanos: ${h26}`);
-                  const mesKey = '2026-' + MESES_NUM[idx];
+                  const mesKey  = '2026-' + MESES_NUM[idx];
                   const desglose = humanos26PorAgente[mesKey];
-                  if (desglose) {
-                    Object.entries(desglose)
-                      .sort((a, b) => b[1] - a[1])
-                      .forEach(([ag, v]) => lines.push(`      · ${ag}: ${v}`));
+                  const paresH = desglose
+                    ? Object.entries(desglose).sort((a,b)=>b[1]-a[1]).map(([ag,v])=>fmt(ag,v))
+                    : [];
+                  if (paresH.length) {
+                    lines.push(`  Humanos: ${h26}`);
+                    chunk(paresH, 3).forEach(l => lines.push('    ' + l));
                   }
                 }
-                lines.push(`  Total: ${t26}`);
               }
 
-              // Delta
+              // ── Delta ──
               if (h25 > 0 && t26 > 0) {
-                lines.push('');
                 const diff = t26 - h25;
                 const pct  = Math.round((diff / h25) * 100);
-                lines.push(`Variacion: ${diff >= 0 ? '+' : ''}${diff} citas (${pct >= 0 ? '+' : ''}${pct}%)`);
-                lines.push(`Δ valor: ${diff >= 0 ? '+' : ''}${formatUSD(diff * CITA_VALOR)}`);
+                lines.push('');
+                lines.push(`Variacion: ${diff >= 0 ? '+' : ''}${diff} (${pct >= 0 ? '+' : ''}${pct}%)  Valor: ${diff >= 0 ? '+' : ''}${formatUSD(diff * CITA_VALOR)}`);
               }
 
               return lines;
