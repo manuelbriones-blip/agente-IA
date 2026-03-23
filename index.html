@@ -1596,18 +1596,30 @@ async function reloadData() {
       .map(r => {
         const norm = {};
         for (const k of Object.keys(r)) norm[k.trim().toLowerCase()] = r[k];
-        const anio = parseInt(clean(norm['año'] || norm['ano'] || norm['year'] || '')) || null;
-        const mesStr = clean(norm['mes'] || '').toLowerCase();
+        // Buscar columna de año de forma flexible (ñ puede llegar mal codificada)
+        const findKey = (...candidates) => {
+          for (const c of candidates) {
+            if (norm[c] !== undefined) return norm[c];
+          }
+          // Búsqueda parcial como último recurso
+          const found = Object.keys(norm).find(k => candidates.some(c => k.includes(c.replace('ñ',''))));
+          return found ? norm[found] : '';
+        };
+        const anio   = parseInt(clean(String(findKey('año','ano','a\u00f1o','year')))) || null;
+        const mesStr = clean(norm['mes'] || findKey('mes') || '').toLowerCase();
         const mesNum = MESES_MAP[mesStr] || null;
-        const n = k => parseInt(clean(norm[k] || '0')) || 0;
+        const nv = col => {
+          const val = norm[col] || findKey(col) || '0';
+          return parseInt(clean(String(val))) || 0;
+        };
         return {
           anio, mes: mesStr, mesNum,
-          total:       n('total agendadas'),
-          completed:   n('completadas'),
-          cancelled:   n('canceladas'),
-          noshow:      n('noshow'),
-          rescheduled: n('rescheduled'),
-          booked:      n('booked'),
+          total:       nv('total agendadas'),
+          completed:   nv('completadas'),
+          cancelled:   nv('canceladas'),
+          noshow:      nv('noshow'),
+          rescheduled: nv('rescheduled'),
+          booked:      nv('booked'),
         };
       })
       .filter(r => r.anio && r.mesNum)
