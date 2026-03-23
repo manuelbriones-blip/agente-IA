@@ -470,12 +470,13 @@ const SHEETS = {
   canceladas:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=1031644821&single=true&output=csv',
   errores:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=228103906&single=true&output=csv',
   humanos2026:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRvjJzgW1ZEgJ_-E6gXydfoQdEMh7Mf-672mzL0Y9gfXCaLy2z1qutFGuq0hFwUs_jo1O7vpCqTq9QQ/pub?gid=0&single=true&output=csv',
+  estadoCitas:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vT8ABDr8Y5IC2dJDmBC85YtbvGWjdhs3iyLQjViKtz_u0IPqRGjM20QfPsDU_NFgidtDBGezjoGGAXV/pub?output=csv',
 };
 
 // ══════════════════════════════════════════════════════════════
 //  ESTADO GLOBAL
 // ══════════════════════════════════════════════════════════════
-let RAW = { hh: [], agendadas: [], canceladas: [], errores: [], humanos2026: [] };
+let RAW = { hh: [], agendadas: [], canceladas: [], errores: [], humanos2026: [], estadoCitas: [] };
 let CHARTS = {};
 
 // ══════════════════════════════════════════════════════════════
@@ -886,29 +887,26 @@ function momBadge(curr, prev, higherIsBetter = true) {
 //  COMPARATIVO HUMANO VS IA
 // ══════════════════════════════════════════════════════════════
 // Datos hardcodeados: estado de citas agendadas por el agente (Ene–Mar 2026)
-const CITAS_ESTADO = [
-  { mes: 'Enero 2026',   completed:  0, cancelled:  0, rescheduled:  0, noshow: 0, booked:  0 },
-  { mes: 'Febrero 2026', completed: 27, cancelled:  9, rescheduled:  6, noshow: 1, booked:  0 },
-  { mes: 'Marzo 2026',   completed: 90, cancelled: 40, rescheduled: 24, noshow: 5, booked:  7 },
-];
-
 function renderEstadoCitas() {
   const ctx = document.getElementById('ch-estado-citas');
   if (!ctx) return;
   if (CHARTS['ch-estado-citas']) CHARTS['ch-estado-citas'].destroy();
 
-  const labels  = CITAS_ESTADO.map(d => d.mes);
+  const data = RAW.estadoCitas;
+  if (!data.length) return;
+
+  const MESES_ES_CORTO = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Set','Oct','Nov','Dic'];
+  const labels = data.map(d => MESES_ES_CORTO[d.mesNum] + ' ' + String(d.anio).slice(2));
+
   const statuses = [
-    { key: 'completed',   label: 'Completada',    color: '#059669' },
-    { key: 'cancelled',   label: 'Cancelada',     color: '#dc2626' },
-    { key: 'rescheduled', label: 'Reagendada',    color: '#d97706' },
-    { key: 'noshow',      label: 'No show',       color: '#7c3aed' },
-    { key: 'booked',      label: 'Reservada',     color: '#2563eb' },
+    { key: 'completed',   label: 'Completada',  color: '#059669' },
+    { key: 'cancelled',   label: 'Cancelada',   color: '#dc2626' },
+    { key: 'rescheduled', label: 'Reagendada',  color: '#d97706' },
+    { key: 'noshow',      label: 'No show',     color: '#7c3aed' },
+    { key: 'booked',      label: 'Reservada',   color: '#2563eb' },
   ];
 
-  const totals = CITAS_ESTADO.map(d =>
-    statuses.reduce((sum, s) => sum + (d[s.key] || 0), 0)
-  );
+  const totals = data.map(d => statuses.reduce((sum, s) => sum + (d[s.key] || 0), 0));
 
   CHARTS['ch-estado-citas'] = new Chart(ctx, {
     type: 'bar',
@@ -916,7 +914,7 @@ function renderEstadoCitas() {
       labels,
       datasets: statuses.map((s, i) => ({
         label: s.label,
-        data: CITAS_ESTADO.map(d => d[s.key] || 0),
+        data: data.map(d => d[s.key] || 0),
         backgroundColor: s.color,
         stack: 'estado',
         barPercentage: 0.5,
@@ -1555,13 +1553,14 @@ async function reloadData() {
   document.getElementById('loader').style.display = 'flex';
   document.getElementById('loader-msg').textContent = 'Cargando datos...';
   try {
-    const [hh1raw, hh2raw, agendadas, canceladas, errores, humanos2026raw] = await Promise.all([
+    const [hh1raw, hh2raw, agendadas, canceladas, errores, humanos2026raw, estadoCitasRaw] = await Promise.all([
       fetchCSV(SHEETS.hh),
       fetchCSV(SHEETS.hh2),
       fetchCSV(SHEETS.agendadas),
       fetchCSV(SHEETS.canceladas),
       fetchCSV(SHEETS.errores),
       fetchCSV(SHEETS.humanos2026),
+      fetchCSV(SHEETS.estadoCitas),
     ]);
     // Mergear los dos sheets de HH — deduplicar por URL de conversación
     const hh1 = normalizeHH(hh1raw);
@@ -1589,6 +1588,30 @@ async function reloadData() {
         return { fecha, agente };
       })
       .filter(r => r.fecha);
+    // Estado de citas: columnas Año, Mes, Total agendadas, Completadas, Canceladas, Noshow, Rescheduled, Booked
+    const MESES_MAP = { enero:1, febrero:2, marzo:3, abril:4, mayo:5, junio:6,
+                        julio:7, agosto:8, setiembre:9, septiembre:9, octubre:10, noviembre:11, diciembre:12 };
+    RAW.estadoCitas = estadoCitasRaw
+      .filter(r => Object.values(r).some(v => v && !isUndef(v)))
+      .map(r => {
+        const norm = {};
+        for (const k of Object.keys(r)) norm[k.trim().toLowerCase()] = r[k];
+        const anio = parseInt(clean(norm['año'] || norm['ano'] || norm['year'] || '')) || null;
+        const mesStr = clean(norm['mes'] || '').toLowerCase();
+        const mesNum = MESES_MAP[mesStr] || null;
+        const n = k => parseInt(clean(norm[k] || '0')) || 0;
+        return {
+          anio, mes: mesStr, mesNum,
+          total:       n('total agendadas'),
+          completed:   n('completadas'),
+          cancelled:   n('canceladas'),
+          noshow:      n('noshow'),
+          rescheduled: n('rescheduled'),
+          booked:      n('booked'),
+        };
+      })
+      .filter(r => r.anio && r.mesNum)
+      .sort((a, b) => a.anio !== b.anio ? a.anio - b.anio : a.mesNum - b.mesNum);
     document.getElementById('last-update').textContent =
       'Actualizado: ' + new Date().toLocaleTimeString('es-CR');
     renderAll();
