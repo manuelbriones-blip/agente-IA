@@ -682,17 +682,33 @@ function normalizeCitas(rows) {
 }
 
 function normalizeHH(rows) {
+  // Busca valor en una fila tolerando tildes, mayúsculas y espacios en el nombre de columna
+  function findVal(r, candidates) {
+    const normMap = {};
+    for (const k of Object.keys(r)) {
+      const norm = k.trim().toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      normMap[norm] = k;
+    }
+    for (const c of candidates) {
+      const normC = c.trim().toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (normMap[normC] !== undefined) return r[normMap[normC]];
+    }
+    return '';
+  }
+
   return rows.map(r => ({
-    url:          clean(r['URL']),
-    fecha:        parseDate(clean(r['Fecha'])),
-    sentimiento:  clean(r['Sentimiento']) ? clean(r['Sentimiento']).charAt(0).toUpperCase() + clean(r['Sentimiento']).slice(1).toLowerCase() : '',
-    transferida:  isTruthy(r['Transferida']),
-    estado:       clean(r['Estado']),
-    tipoSolicitud:clean(r['Tipo de solicitud']),
-    motivoCierre: clean(r['Motivo de Cierre']),
-    pais:         clean(r['País'] || r['Pais'] || r['pais']),
-    resumen:      clean(r['Resumen']),
-    medico:       clean(r['Médico solicitado'] || r['Medico solicitado']),
+    url:          clean(findVal(r, ['URL','url'])),
+    fecha:        parseDate(clean(findVal(r, ['Fecha','fecha']))),
+    sentimiento:  (() => { const s = clean(findVal(r, ['Sentimiento','sentimiento'])); return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : ''; })(),
+    transferida:  isTruthy(findVal(r, ['Transferida','transferida'])),
+    estado:       clean(findVal(r, ['Estado','estado'])),
+    tipoSolicitud:clean(findVal(r, ['Tipo de solicitud','tipo de solicitud'])),
+    motivoCierre: clean(findVal(r, ['Motivo de Cierre','motivo de cierre','Motivo de cierre'])),
+    pais:         clean(findVal(r, ['País','Pais','pais','PAIS','PAÍS'])),
+    resumen:      clean(findVal(r, ['Resumen','resumen'])),
+    medico:       clean(findVal(r, ['Médico solicitado','Medico solicitado','medico solicitado'])),
   }));
 }
 
