@@ -300,8 +300,8 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
       <label>País</label>
       <select id="f-pais" onchange="renderAll()">
         <option value="">Todos</option>
-        <option value="CR">Costa Rica</option>
-        <option value="PA">Panamá</option>
+        <option value="HuliHealth_CostaRica">Costa Rica</option>
+        <option value="HuliHealth_Panama">Panamá</option>
       </select>
     </div>
     <button id="btn-refresh" onclick="reloadData()">↺ Actualizar</button>
@@ -399,8 +399,8 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color:
       <div class="chart-row cols-1" style="margin-top:16px">
         <div class="chart-card">
           <div style="margin-bottom:4px">
-            <h3>Citas agendadas: 2025 (solo humanos) vs 2026 (humanos + agente IA)</h3>
-            <p class="chart-subtitle">Comparativo año a año — canal WhatsApp CR</p>
+            <h3>Citas agendadas por WhatsApp: 2025 (solo humanos) vs 2026 (humanos + agente IA)</h3>
+            <p class="chart-subtitle">Comparativo año a año — Costa Rica</p>
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#64748b">
               <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#64748b"></span> Humanos 2025
               <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#059669"></span> Agente IA 2026
@@ -469,7 +469,7 @@ const SHEETS = {
   agendadas:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=0&single=true&output=csv',
   canceladas:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=1031644821&single=true&output=csv',
   errores:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vR5XzBhYl5L3YfeDOQBj3-nay_akmefytKLof4yO-HfKA3K_Wub6OqfTZAXXDkwPqy_SwnXrSKIiLg9/pub?gid=228103906&single=true&output=csv',
-  humanos2026:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRvjJzgW1ZEgJ_-E6gXydfoQdEMh7Mf-672mzL0Y9gfXCaLy2z1qutFGuq0hFwUs_jo1O7vpCqTq9QQ/pub?gid=0&single=true&output=csv',
+  humanos2026:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vTLwOOqH2IKqqOJw_fYlw2U8riL1m8LHWNuVMJuYVPq2lNZY4oGfAmDzhlMbJM-liC-CueAE-dBC3uB/pub?gid=0&single=true&output=csv',
   estadoCitas:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vT8ABDr8Y5IC2dJDmBC85YtbvGWjdhs3iyLQjViKtz_u0IPqRGjM20QfPsDU_NFgidtDBGezjoGGAXV/pub?output=csv',
 };
 
@@ -1487,9 +1487,21 @@ function renderAll() {
   );
 
   // ── Sentimiento (con drill-down, sin "Sin dato") ──
+  // Colores fijos por tipo de sentimiento: positivo=verde, neutro=amarillo, negativo=rojo
   const bySent = countBy(hh.filter(r => r.sentimiento), r => r.sentimiento);
-  makeDonut('ch-hh-sentimiento', Object.keys(bySent), Object.values(bySent),
-    ['#10b981','#f59e0b','#ef4444','#94a3b8'], (label) => {
+  const SENT_COLOR_MAP = {
+    'positivo': '#16a34a',
+    'neutral':  '#eab308',
+    'neutro':   '#eab308',
+    'negativo': '#dc2626',
+  };
+  const sentLabels = Object.keys(bySent);
+  const sentColors = sentLabels.map(l => {
+    const norm = l.toLowerCase().replace(/\s*\(.*\)/, '').trim();
+    return SENT_COLOR_MAP[norm] || '#94a3b8';
+  });
+  makeDonut('ch-hh-sentimiento', sentLabels, Object.values(bySent),
+    sentColors, (label) => {
     const key = label.replace(/\s*\(.*\)/, '').trim();
     const rows = hh.filter(r => r.sentimiento === key);
     openModal('Sentimiento: ' + key, rows);
@@ -1576,15 +1588,22 @@ async function reloadData() {
     RAW.agendadas  = normalizeCitas(agendadas.filter(r => Object.values(r).some(v => v && !isUndef(v))));
     RAW.canceladas = normalizeCitas(canceladas.filter(r => Object.values(r).some(v => v && !isUndef(v))));
     RAW.errores    = normalizeCitas(errores.filter(r => Object.values(r).some(v => v && !isUndef(v))));
-    // Humanos 2026: columnas Fecha y Agente
+    // Humanos 2026: columnas Usuario, Tipo, Mes (nuevo formato)
+    const MESES_MAP_H26 = {
+      enero:1, febrero:2, marzo:3, abril:4, mayo:5, junio:6,
+      julio:7, agosto:8, setiembre:9, septiembre:9, octubre:10, noviembre:11, diciembre:12
+    };
+    const ANIO_H26 = 2026;
     RAW.humanos2026 = humanos2026raw
       .filter(r => Object.values(r).some(v => v && !isUndef(v)))
       .map(r => {
         const norm = {};
         for (const k of Object.keys(r)) norm[k.trim().toLowerCase()] = r[k];
-        const rawFecha = norm['fecha'];
-        const fecha = rawFecha ? parseDate(clean(String(rawFecha))) : null;
-        const agente = clean(norm['agente'] || norm['agent'] || '');
+        const agente = clean(norm['usuario'] || norm['agente'] || norm['agent'] || '');
+        const mesStr = clean(norm['mes'] || '').toLowerCase();
+        const mesNum = MESES_MAP_H26[mesStr] || null;
+        // Fecha sintética: día 1 del mes — usado solo para agrupar por getMonthKey()
+        const fecha  = mesNum ? new Date(ANIO_H26, mesNum - 1, 1) : null;
         return { fecha, agente };
       })
       .filter(r => r.fecha);
